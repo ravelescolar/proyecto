@@ -1,0 +1,6 @@
+{
+  "name": "Cuentas de Cobro - Transportes Ravel",
+  "description": "Sistema para creación, gestión, autocompletado y exportación en PDF de cuentas de cobro para Transportes Ravel.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
