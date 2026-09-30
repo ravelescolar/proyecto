@@ -433,3 +433,34 @@ export async function syncInitialDataToCloud(
     return { cuentasSynced: 0, driversSynced: 0 };
   }
 }
+
+/**
+ * Convenience auto-authenticated helpers for storage integration
+ */
+export async function saveCuentaToCloud(cuenta: CuentaDeCobro): Promise<void> {
+  if (!auth.currentUser) return;
+  return saveCuentaCloud(cuenta, auth.currentUser.uid, auth.currentUser.email || undefined);
+}
+
+export async function deleteCuentaToCloud(cuentaId: string): Promise<void> {
+  if (!auth.currentUser) return;
+  return deleteCuentaCloud(cuentaId);
+}
+export const deleteCuentaFromCloud = deleteCuentaToCloud;
+
+export async function saveDriverToCloud(driver: DriverProfile): Promise<void> {
+  if (!auth.currentUser) return;
+  return saveDriverCloud(driver, auth.currentUser.uid);
+}
+
+export async function deleteDriverToCloud(driverId: string): Promise<void> {
+  if (!auth.currentUser) return;
+  return deleteDriverCloud(driverId);
+}
+export const deleteDriverFromCloud = deleteDriverToCloud;
+
+export async function saveSettingsToCloud(settings: AppSettings): Promise<void> {
+  if (!auth.currentUser) return;
+  return saveSettingsCloud(settings, auth.currentUser.uid);
+}
+

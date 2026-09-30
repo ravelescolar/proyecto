@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
 
 process.env.NEXT_TELEMETRY_DISABLED = '1';
+process.env.NEXT_DIST_DIR = '.next_dev';
 
 const rawArgs = process.argv.slice(2);
 const convertedArgs = [];

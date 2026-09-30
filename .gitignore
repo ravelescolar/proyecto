@@ -1,4 +1,6 @@
 node_modules/
+.next/
+.next_dev/
 build/
 dist/
 coverage/

@@ -5,7 +5,7 @@ import {
   saveDriverToCloud,
   deleteDriverFromCloud,
   saveSettingsToCloud,
-} from '../lib/firebase';
+} from './firestoreService';
 
 const STORAGE_KEYS = {
   SETTINGS: 'ravel_cuentas_settings_v1',
@@ -153,6 +153,7 @@ export function formatConsecutive(prefix: string, num: number): string {
 }
 
 export function loadSettings(): AppSettings {
+  if (typeof window === 'undefined') return DEFAULT_SETTINGS;
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
     if (!raw) return DEFAULT_SETTINGS;
@@ -163,6 +164,7 @@ export function loadSettings(): AppSettings {
 }
 
 export function saveSettings(settings: AppSettings): void {
+  if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
     saveSettingsToCloud(settings).catch((e) => console.warn('Cloud sync settings error:', e));
@@ -172,6 +174,7 @@ export function saveSettings(settings: AppSettings): void {
 }
 
 export function loadDriverProfiles(): DriverProfile[] {
+  if (typeof window === 'undefined') return INITIAL_DRIVERS;
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.DRIVERS);
     if (!raw) {
@@ -259,6 +262,7 @@ export function findDriverByPlate(plateQuery: string): DriverProfile | undefined
 }
 
 export function loadCuentas(): CuentaDeCobro[] {
+  if (typeof window === 'undefined') return INITIAL_CUENTAS;
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.CUENTAS);
     if (!raw) {
@@ -272,6 +276,7 @@ export function loadCuentas(): CuentaDeCobro[] {
 }
 
 export function saveCuenta(cuenta: CuentaDeCobro): void {
+  if (typeof window === 'undefined') return;
   const cuentas = loadCuentas();
   const existingIdx = cuentas.findIndex((c) => c.id === cuenta.id);
 

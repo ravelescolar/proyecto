@@ -97,3 +97,15 @@ export async function signInWithGoogle() {
 export async function logOutFromFirebase() {
   await signOut(auth);
 }
+
+// Re-export cloud sync helpers so imports from lib/firebase never fail
+export {
+  saveCuentaToCloud,
+  deleteCuentaToCloud,
+  deleteCuentaFromCloud,
+  saveDriverToCloud,
+  deleteDriverToCloud,
+  deleteDriverFromCloud,
+  saveSettingsToCloud,
+} from '../utils/firestoreService';
+

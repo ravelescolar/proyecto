@@ -48,6 +48,7 @@ export const ACCEPTED_ALIASES = [
  * Get current registered credentials or initialize with defaults.
  */
 export function getRegisteredCredentials(): StoredCredentials {
+  if (typeof window === 'undefined') return DEFAULT_CREDENTIALS;
   try {
     const raw = localStorage.getItem(AUTH_KEYS.CREDENTIALS);
     if (!raw) {
@@ -64,6 +65,7 @@ export function getRegisteredCredentials(): StoredCredentials {
  * Check if the user is currently authenticated in this browser.
  */
 export function getCurrentSession(): AuthUser | null {
+  if (typeof window === 'undefined') return null;
   try {
     // 1. Check localStorage (Remember me)
     const local = localStorage.getItem(AUTH_KEYS.SESSION_LOCAL);
