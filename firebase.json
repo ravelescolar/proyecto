@@ -1,8 +1,0 @@
-{
-  "firestore": [
-    {
-      "database": "ai-studio-cuentasdecobrotr-fea24a7b-40e5-4cde-a630-8b7409ac36ed",
-      "rules": "firestore.rules"
-    }
-  ]
-}

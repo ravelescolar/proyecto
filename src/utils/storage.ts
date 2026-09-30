@@ -1,11 +1,4 @@
 import { AppSettings, CuentaDeCobro, DriverProfile } from '../types';
-import {
-  saveCuentaToCloud,
-  deleteCuentaFromCloud,
-  saveDriverToCloud,
-  deleteDriverFromCloud,
-  saveSettingsToCloud,
-} from './firestoreService';
 
 const STORAGE_KEYS = {
   SETTINGS: 'ravel_cuentas_settings_v1',
@@ -153,7 +146,6 @@ export function formatConsecutive(prefix: string, num: number): string {
 }
 
 export function loadSettings(): AppSettings {
-  if (typeof window === 'undefined') return DEFAULT_SETTINGS;
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
     if (!raw) return DEFAULT_SETTINGS;
@@ -164,17 +156,14 @@ export function loadSettings(): AppSettings {
 }
 
 export function saveSettings(settings: AppSettings): void {
-  if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
-    saveSettingsToCloud(settings).catch((e) => console.warn('Cloud sync settings error:', e));
   } catch (e) {
     console.error('Error saving settings', e);
   }
 }
 
 export function loadDriverProfiles(): DriverProfile[] {
-  if (typeof window === 'undefined') return INITIAL_DRIVERS;
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.DRIVERS);
     if (!raw) {
@@ -234,7 +223,6 @@ export function saveDriverProfile(driver: Partial<DriverProfile> & { plate: stri
 
   try {
     localStorage.setItem(STORAGE_KEYS.DRIVERS, JSON.stringify(profiles));
-    saveDriverToCloud(updatedProfile).catch((e) => console.warn('Cloud sync driver error:', e));
   } catch (e) {
     console.error('Error saving driver profile', e);
   }
@@ -246,7 +234,6 @@ export function deleteDriverProfile(id: string): void {
   const profiles = loadDriverProfiles().filter((p) => p.id !== id);
   try {
     localStorage.setItem(STORAGE_KEYS.DRIVERS, JSON.stringify(profiles));
-    deleteDriverFromCloud(id).catch((e) => console.warn('Cloud delete driver error:', e));
   } catch (e) {
     console.error('Error deleting profile', e);
   }
@@ -262,7 +249,6 @@ export function findDriverByPlate(plateQuery: string): DriverProfile | undefined
 }
 
 export function loadCuentas(): CuentaDeCobro[] {
-  if (typeof window === 'undefined') return INITIAL_CUENTAS;
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.CUENTAS);
     if (!raw) {
@@ -276,17 +262,13 @@ export function loadCuentas(): CuentaDeCobro[] {
 }
 
 export function saveCuenta(cuenta: CuentaDeCobro): void {
-  if (typeof window === 'undefined') return;
   const cuentas = loadCuentas();
   const existingIdx = cuentas.findIndex((c) => c.id === cuenta.id);
 
-  let targetCuenta = cuenta;
   if (existingIdx >= 0) {
-    targetCuenta = { ...cuenta, updatedAt: new Date().toISOString() };
-    cuentas[existingIdx] = targetCuenta;
+    cuentas[existingIdx] = { ...cuenta, updatedAt: new Date().toISOString() };
   } else {
-    targetCuenta = { ...cuenta, updatedAt: new Date().toISOString() };
-    cuentas.unshift(targetCuenta);
+    cuentas.unshift(cuenta);
     // Increment consecutive in settings if it matches next
     const settings = loadSettings();
     if (cuenta.consecutive >= settings.nextConsecutive) {
@@ -297,7 +279,6 @@ export function saveCuenta(cuenta: CuentaDeCobro): void {
 
   try {
     localStorage.setItem(STORAGE_KEYS.CUENTAS, JSON.stringify(cuentas));
-    saveCuentaToCloud(targetCuenta).catch((e) => console.warn('Cloud sync cuenta error:', e));
   } catch (e) {
     console.error('Error saving cuenta', e);
   }
@@ -318,7 +299,6 @@ export function deleteCuenta(id: string): void {
   const cuentas = loadCuentas().filter((c) => c.id !== id);
   try {
     localStorage.setItem(STORAGE_KEYS.CUENTAS, JSON.stringify(cuentas));
-    deleteCuentaFromCloud(id).catch((e) => console.warn('Cloud delete cuenta error:', e));
   } catch (e) {
     console.error('Error deleting cuenta', e);
   }
@@ -331,7 +311,6 @@ export function updateCuentaStatus(id: string, status: CuentaDeCobro['status']):
     item.status = status;
     item.updatedAt = new Date().toISOString();
     localStorage.setItem(STORAGE_KEYS.CUENTAS, JSON.stringify(cuentas));
-    saveCuentaToCloud(item).catch((e) => console.warn('Cloud update status error:', e));
   }
 }
 
@@ -341,26 +320,6 @@ export function getNextConsecutive(): { number: number; formatted: string } {
     number: settings.nextConsecutive,
     formatted: formatConsecutive(settings.prefix, settings.nextConsecutive),
   };
-}
-
-export async function syncLocalToCloudBulk(): Promise<{ success: boolean; count: number }> {
-  try {
-    const currentCuentas = loadCuentas();
-    const currentDrivers = loadDriverProfiles();
-    const currentSettings = loadSettings();
-
-    await saveSettingsToCloud(currentSettings);
-    for (const c of currentCuentas) {
-      await saveCuentaToCloud(c);
-    }
-    for (const d of currentDrivers) {
-      await saveDriverToCloud(d);
-    }
-    return { success: true, count: currentCuentas.length + currentDrivers.length };
-  } catch (e) {
-    console.error('Bulk sync failed:', e);
-    return { success: false, count: 0 };
-  }
 }
 
 export function exportAllData(): string {
