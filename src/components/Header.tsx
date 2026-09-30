@@ -6,7 +6,10 @@ import {
   Settings,
   Plus,
   LogOut,
-  User
+  User,
+  Cloud,
+  CloudCheck,
+  RefreshCw
 } from 'lucide-react';
 import { AppSettings } from '../types';
 import { AuthUser } from '../utils/auth';
@@ -21,6 +24,10 @@ interface HeaderProps {
   settings: AppSettings;
   currentUser?: AuthUser | null;
   onLogout?: () => void;
+  isCloudConnected?: boolean;
+  isSyncing?: boolean;
+  onConnectGoogle?: () => void;
+  onSyncNow?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -32,6 +39,10 @@ export const Header: React.FC<HeaderProps> = ({
   settings,
   currentUser,
   onLogout,
+  isCloudConnected = false,
+  isSyncing = false,
+  onConnectGoogle,
+  onSyncNow,
 }) => {
   return (
     <header className="no-print bg-white/95 backdrop-blur-md border-b border-emerald-100 sticky top-0 z-30 shadow-xs">
@@ -66,6 +77,37 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Navigation Controls */}
           <nav className="flex items-center gap-1 sm:gap-2">
+            {/* Cloud Status Badge */}
+            <div className="hidden lg:flex items-center mr-1">
+              {isCloudConnected ? (
+                <button
+                  type="button"
+                  onClick={onSyncNow}
+                  title="Sincronizado en tiempo real con Firebase Cloud Firestore. Clic para forzar actualización."
+                  className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full text-xs font-medium hover:bg-emerald-100 transition-colors cursor-pointer"
+                >
+                  {isSyncing ? (
+                    <RefreshCw className="w-3.5 h-3.5 text-emerald-600 animate-spin" />
+                  ) : (
+                    <Cloud className="w-3.5 h-3.5 text-emerald-600 fill-emerald-100" />
+                  )}
+                  <span>Nube activa</span>
+                </button>
+              ) : (
+                onConnectGoogle && (
+                  <button
+                    type="button"
+                    onClick={onConnectGoogle}
+                    title="Conectar con Google para guardar y ver tus cuentas desde cualquier dispositivo"
+                    className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-full text-xs font-semibold hover:bg-amber-100 transition-colors cursor-pointer"
+                  >
+                    <Cloud className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Conectar Nube</span>
+                  </button>
+                )
+              )}
+            </div>
+
             <button
               onClick={() => onSelectTab('form')}
               className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg transition-all ${
@@ -136,7 +178,9 @@ export const Header: React.FC<HeaderProps> = ({
                 <div className="flex items-center gap-1.5 pl-1">
                   <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 rounded-lg border border-emerald-200 text-xs font-semibold text-emerald-950">
                     <User className="w-3.5 h-3.5 text-emerald-700" />
-                    <span className="truncate max-w-[120px] font-mono">{currentUser.username}</span>
+                    <span className="truncate max-w-[130px] font-mono text-[11px]">
+                      {currentUser.email || currentUser.username}
+                    </span>
                   </div>
 
                   <button

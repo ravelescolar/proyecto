@@ -10,6 +10,9 @@ export interface AuthUser {
   name: string;
   role: 'admin' | 'operador';
   lastLogin: string;
+  email?: string;
+  photoURL?: string;
+  isGoogleUser?: boolean;
 }
 
 export interface StoredCredentials {

@@ -13,7 +13,9 @@ import {
   Lock,
   KeyRound,
   ShieldCheck,
-  UserCheck
+  UserCheck,
+  Cloud,
+  RefreshCw
 } from 'lucide-react';
 import { AppSettings } from '../types';
 import { loadSettings, saveSettings, exportAllData, importAllData } from '../utils/storage';
@@ -24,12 +26,18 @@ interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSettingsUpdated: () => void;
+  isCloudConnected?: boolean;
+  onConnectGoogle?: () => void;
+  onForceSync?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
   onSettingsUpdated,
+  isCloudConnected = false,
+  onConnectGoogle,
+  onForceSync,
 }) => {
   const [settings, setSettings] = useState<AppSettings>(loadSettings());
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -382,6 +390,58 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <KeyRound className="w-3.5 h-3.5 text-emerald-800" />
                   <span>Actualizar Credenciales</span>
                 </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Cloud Firestore Storage Status */}
+          <div className="border-t border-slate-100 pt-4">
+            <span className="text-xs font-bold text-emerald-950 block mb-2 uppercase tracking-wider flex items-center gap-1.5">
+              <Cloud className="w-4 h-4 text-emerald-600" />
+              Alojamiento y Sincronización en la Web (Multi-dispositivo)
+            </span>
+
+            <div className="p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-200">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-block w-2.5 h-2.5 rounded-full ${isCloudConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`}></span>
+                    <span className="text-xs font-bold text-emerald-950">
+                      {isCloudConnected
+                        ? 'Base de Datos Cloud Firestore Conectada'
+                        : 'Almacenamiento Local (No sincronizado)'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
+                    {isCloudConnected
+                      ? 'Todas tus cuentas de cobro, números consecutivos y directores de vehículos están alojados en la nube. Se actualizan automáticamente para que puedas ingresar desde tu celular, tablet o cualquier otro computador.'
+                      : 'Actualmente tus datos solo se guardan en este navegador. Conecta tu cuenta para sincronizar con la web y ver tus cuentas desde cualquier dispositivo.'}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  {isCloudConnected && onForceSync && (
+                    <button
+                      type="button"
+                      onClick={onForceSync}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-800 bg-white hover:bg-emerald-100 border border-emerald-300 rounded-lg shadow-xs transition-colors cursor-pointer"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Sincronizar Todo</span>
+                    </button>
+                  )}
+
+                  {!isCloudConnected && onConnectGoogle && (
+                    <button
+                      type="button"
+                      onClick={onConnectGoogle}
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-slate-900 bg-amber-400 hover:bg-amber-300 rounded-lg shadow-xs transition-colors cursor-pointer"
+                    >
+                      <Cloud className="w-3.5 h-3.5" />
+                      <span>Conectar a la Nube</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>

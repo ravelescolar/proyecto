@@ -18,12 +18,16 @@ interface ConductoresPlacasProps {
   drivers: DriverProfile[];
   onRefresh: () => void;
   onSelectForCuenta: (driver: DriverProfile) => void;
+  onSaveDriver?: (driver: DriverProfile) => void;
+  onDeleteDriver?: (id: string) => void;
 }
 
 export const ConductoresPlacas: React.FC<ConductoresPlacasProps> = ({
   drivers,
   onRefresh,
   onSelectForCuenta,
+  onSaveDriver,
+  onDeleteDriver,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingDriver, setEditingDriver] = useState<DriverProfile | null>(null);
@@ -118,7 +122,10 @@ export const ConductoresPlacas: React.FC<ConductoresPlacasProps> = ({
       },
     };
 
-    saveDriverProfile(payload);
+    const saved = saveDriverProfile(payload);
+    if (onSaveDriver) {
+      onSaveDriver(saved);
+    }
     onRefresh();
     setIsCreating(false);
     setEditingDriver(null);
@@ -485,6 +492,9 @@ export const ConductoresPlacas: React.FC<ConductoresPlacasProps> = ({
                 type="button"
                 onClick={() => {
                   deleteDriverProfile(driverToDelete.id);
+                  if (onDeleteDriver) {
+                    onDeleteDriver(driverToDelete.id);
+                  }
                   onRefresh();
                   setDriverToDelete(null);
                 }}
