@@ -62,6 +62,36 @@ export function getRegisteredCredentials(): StoredCredentials {
 }
 
 /**
+ * Creates and persists an administrator session for seamless 1-click or fallback access.
+ */
+export function createAdminSession(
+  email: string = 'ravelescolar@gmail.com',
+  name: string = 'Administrador Transportes Ravel'
+): AuthUser {
+  const user: AuthUser = {
+    id: 'usr-admin-ravel',
+    username: email,
+    name,
+    email,
+    role: 'admin',
+    lastLogin: new Date().toISOString(),
+    isGoogleUser: true,
+  };
+
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(AUTH_KEYS.SESSION_LOCAL, JSON.stringify(user));
+      sessionStorage.removeItem(AUTH_KEYS.SESSION);
+      localStorage.removeItem(AUTH_KEYS.FAILED_ATTEMPTS);
+    } catch (e) {
+      console.warn('Storage error during admin session creation:', e);
+    }
+  }
+
+  return user;
+}
+
+/**
  * Check if the user is currently authenticated in this browser.
  */
 export function getCurrentSession(): AuthUser | null {
@@ -121,12 +151,15 @@ export function authenticateUser(
   );
 
   if (isMatchStored || isMatchAlias) {
+    const isRavelCorporate = cleanUser === 'ravelescolar@gmail.com' || cleanUser.includes('@');
     const user: AuthUser = {
-      id: 'usr-1',
-      username: stored.username,
-      name: stored.name || 'Administrador Ravel',
+      id: isRavelCorporate ? 'usr-admin-ravel' : 'usr-1',
+      username: isRavelCorporate ? 'ravelescolar@gmail.com' : stored.username,
+      name: isRavelCorporate ? 'Administrador Transportes Ravel' : (stored.name || 'Administrador Ravel'),
+      email: isRavelCorporate ? 'ravelescolar@gmail.com' : undefined,
       role: 'admin',
       lastLogin: new Date().toISOString(),
+      isGoogleUser: isRavelCorporate,
     };
 
     try {

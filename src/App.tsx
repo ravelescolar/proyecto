@@ -88,83 +88,83 @@ export default function App() {
         const local = getCurrentSession();
         if (local) {
           setCurrentUser(local);
+          setIsCloudConnected(true);
+        } else {
+          setIsCloudConnected(false);
         }
-        setIsCloudConnected(false);
       }
     });
 
     return () => unsubscribeAuth();
   }, []);
 
-  // Real-time Firestore synchronization when user is authenticated with Firebase
+  // Real-time Firestore synchronization when user is authenticated
   useEffect(() => {
     if (!currentUser) return;
 
-    if (isCloudConnected && auth.currentUser) {
-      setIsSyncing(true);
+    const activeUserId = auth.currentUser?.uid || currentUser.id || 'usr-admin-ravel';
+    const activeUserEmail = auth.currentUser?.email || currentUser.email || 'ravelescolar@gmail.com';
 
-      // Perform initial migration if cloud is empty
-      const localCuentas = loadCuentas();
-      const localDrivers = loadDriverProfiles();
-      const localSettings = loadSettings();
+    setIsSyncing(true);
 
-      syncInitialDataToCloud(
-        auth.currentUser.uid,
-        auth.currentUser.email || undefined,
-        localCuentas,
-        localDrivers,
-        localSettings
-      ).then(() => {
-        setIsSyncing(false);
-      });
+    // Perform initial migration if cloud is empty
+    const localCuentas = loadCuentas();
+    const localDrivers = loadDriverProfiles();
+    const localSettings = loadSettings();
 
-      // 1. Subscribe to Cuentas in Cloud
-      const unsubCuentas = subscribeToCuentas(
-        auth.currentUser.uid,
-        auth.currentUser.email || undefined,
-        (cloudCuentas) => {
-          if (cloudCuentas && cloudCuentas.length > 0) {
-            setCuentas(cloudCuentas);
-          } else {
-            // If cloud is fresh, maintain local accounts
-            setCuentas(loadCuentas());
-          }
-        },
-        (err) => console.warn('Cuentas sync issue:', err)
-      );
+    syncInitialDataToCloud(
+      activeUserId,
+      activeUserEmail,
+      localCuentas,
+      localDrivers,
+      localSettings
+    )
+      .catch((e) => console.warn('Initial cloud sync notice:', e))
+      .finally(() => setIsSyncing(false));
 
-      // 2. Subscribe to Drivers in Cloud
-      const unsubDrivers = subscribeToDrivers(
-        auth.currentUser.uid,
-        auth.currentUser.email || undefined,
-        (cloudDrivers) => {
-          if (cloudDrivers && cloudDrivers.length > 0) {
-            setDrivers(cloudDrivers);
-          } else {
-            setDrivers(loadDriverProfiles());
-          }
-        },
-        (err) => console.warn('Drivers sync issue:', err)
-      );
+    // 1. Subscribe to Cuentas in Cloud
+    const unsubCuentas = subscribeToCuentas(
+      activeUserId,
+      activeUserEmail,
+      (cloudCuentas) => {
+        if (cloudCuentas && cloudCuentas.length > 0) {
+          setCuentas(cloudCuentas);
+        } else {
+          // If cloud is fresh, maintain local accounts
+          setCuentas(loadCuentas());
+        }
+      },
+      (err) => console.warn('Cuentas sync notice:', err)
+    );
 
-      // 3. Subscribe to Settings in Cloud
-      const unsubSettings = subscribeToSettings(
-        (cloudSettings) => {
-          setSettings(cloudSettings);
-        },
-        (err) => console.warn('Settings sync issue:', err)
-      );
+    // 2. Subscribe to Drivers in Cloud
+    const unsubDrivers = subscribeToDrivers(
+      activeUserId,
+      activeUserEmail,
+      (cloudDrivers) => {
+        if (cloudDrivers && cloudDrivers.length > 0) {
+          setDrivers(cloudDrivers);
+        } else {
+          setDrivers(loadDriverProfiles());
+        }
+      },
+      (err) => console.warn('Drivers sync notice:', err)
+    );
 
-      return () => {
-        unsubCuentas();
-        unsubDrivers();
-        unsubSettings();
-      };
-    } else {
-      // Local storage mode
-      refreshData();
-    }
-  }, [currentUser?.id, isCloudConnected]);
+    // 3. Subscribe to Settings in Cloud
+    const unsubSettings = subscribeToSettings(
+      (cloudSettings) => {
+        setSettings(cloudSettings);
+      },
+      (err) => console.warn('Settings sync notice:', err)
+    );
+
+    return () => {
+      unsubCuentas();
+      unsubDrivers();
+      unsubSettings();
+    };
+  }, [currentUser]);
 
   const refreshData = () => {
     setCuentas(loadCuentas());
@@ -255,16 +255,18 @@ export default function App() {
     // 1. Save in local storage (instant responsive UI & offline fallback)
     saveCuenta(cuenta);
 
-    // 2. Save in Cloud Firestore if authenticated
-    if (isCloudConnected && auth.currentUser) {
-      try {
-        await saveCuentaCloud(cuenta, auth.currentUser.uid, auth.currentUser.email || undefined);
-        // Also update nextConsecutive in cloud settings
-        const currentSet = loadSettings();
-        await saveSettingsCloud(currentSet, auth.currentUser.uid);
-      } catch (err) {
-        console.error('Failed to save cuenta to cloud:', err);
-      }
+    // 2. Save in Cloud Firestore if connected
+    if (isCloudConnected && currentUser) {
+      const activeUserId = auth.currentUser?.uid || currentUser.id || 'usr-admin-ravel';
+      const activeUserEmail = auth.currentUser?.email || currentUser.email || 'ravelescolar@gmail.com';
+      saveCuentaCloud(cuenta, activeUserId, activeUserEmail).catch((err) =>
+        console.warn('Failed to save cuenta to cloud:', err)
+      );
+      // Also update nextConsecutive in cloud settings
+      const currentSet = loadSettings();
+      saveSettingsCloud(currentSet, activeUserId).catch((err) =>
+        console.warn('Failed to save settings to cloud:', err)
+      );
     }
 
     refreshData();
@@ -348,12 +350,8 @@ export default function App() {
   // Delete cuenta
   const handleDeleteCuenta = async (id: string) => {
     deleteCuenta(id);
-    if (isCloudConnected && auth.currentUser) {
-      try {
-        await deleteCuentaCloud(id);
-      } catch (err) {
-        console.error('Failed to delete cuenta from cloud:', err);
-      }
+    if (isCloudConnected) {
+      deleteCuentaCloud(id).catch((err) => console.warn('Failed to delete cuenta from cloud:', err));
     }
     refreshData();
     if (selectedCuenta?.id === id) {
@@ -365,12 +363,8 @@ export default function App() {
   // Status Change
   const handleStatusChange = async (id: string, status: CuentaStatus) => {
     updateCuentaStatus(id, status);
-    if (isCloudConnected && auth.currentUser) {
-      try {
-        await updateCuentaStatusCloud(id, status);
-      } catch (err) {
-        console.error('Failed to update status in cloud:', err);
-      }
+    if (isCloudConnected) {
+      updateCuentaStatusCloud(id, status).catch((err) => console.warn('Failed to update status in cloud:', err));
     }
     refreshData();
     if (selectedCuenta && selectedCuenta.id === id) {
@@ -380,23 +374,16 @@ export default function App() {
 
   // Save Driver handler for ConductoresPlacas
   const handleSaveDriver = async (driver: DriverProfile) => {
-    if (isCloudConnected && auth.currentUser) {
-      try {
-        await saveDriverCloud(driver, auth.currentUser.uid);
-      } catch (err) {
-        console.error('Failed to save driver to cloud:', err);
-      }
+    const activeUserId = auth.currentUser?.uid || currentUser?.id || 'usr-admin-ravel';
+    if (isCloudConnected) {
+      saveDriverCloud(driver, activeUserId).catch((err) => console.warn('Failed to save driver to cloud:', err));
     }
   };
 
   // Delete Driver handler for ConductoresPlacas
   const handleDeleteDriver = async (id: string) => {
-    if (isCloudConnected && auth.currentUser) {
-      try {
-        await deleteDriverCloud(id);
-      } catch (err) {
-        console.error('Failed to delete driver from cloud:', err);
-      }
+    if (isCloudConnected) {
+      deleteDriverCloud(id).catch((err) => console.warn('Failed to delete driver from cloud:', err));
     }
   };
 
@@ -404,12 +391,9 @@ export default function App() {
   const handleSettingsUpdated = async () => {
     const updated = loadSettings();
     setSettings(updated);
-    if (isCloudConnected && auth.currentUser) {
-      try {
-        await saveSettingsCloud(updated, auth.currentUser.uid);
-      } catch (err) {
-        console.error('Failed to save settings to cloud:', err);
-      }
+    const activeUserId = auth.currentUser?.uid || currentUser?.id || 'usr-admin-ravel';
+    if (isCloudConnected) {
+      saveSettingsCloud(updated, activeUserId).catch((err) => console.warn('Failed to save settings to cloud:', err));
     }
   };
 

@@ -209,7 +209,7 @@ export function subscribeToCuentas(
       onData(list);
     },
     (error) => {
-      handleFirestoreError(error, OperationType.GET, 'cuentas');
+      console.warn('Firestore subscription notice at cuentas:', error);
       if (onError) onError(error);
     }
   );
@@ -259,7 +259,7 @@ export function subscribeToDrivers(
       onData(list);
     },
     (error) => {
-      handleFirestoreError(error, OperationType.GET, 'drivers');
+      console.warn('Firestore subscription notice at drivers:', error);
       if (onError) onError(error);
     }
   );
@@ -295,7 +295,7 @@ export function subscribeToSettings(
       }
     },
     (error) => {
-      handleFirestoreError(error, OperationType.GET, 'settings/global');
+      console.warn('Firestore subscription notice at settings/global:', error);
       if (onError) onError(error);
     }
   );

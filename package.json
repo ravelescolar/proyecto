@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "node dev.mjs",
-    "build": "next build && vite build && cp -r dist build",
-    "start": "next start -p 3000 -H 0.0.0.0",
-    "preview": "next start -p 3000",
+    "build": "NODE_ENV=production next build && vite build && rm -rf build && cp -r dist build && rm -rf out && cp -r dist out",
+    "start": "next start -H 0.0.0.0",
+    "preview": "next start -H 0.0.0.0 -p 3000",
     "clean": "rm -rf .next dist",
     "lint": "tsc --noEmit"
   },
