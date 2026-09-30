@@ -24,11 +24,11 @@ Esta aplicación está completamente optimizada y lista para desplegarse en **Ve
 ### Opción 1: Conectar Repositorio Git en Vercel
 1. Ve a [vercel.com](https://vercel.com) e inicia sesión.
 2. Haz clic en **"Add New Project"** e importa tu repositorio.
-3. Vercel detectará automáticamente que es un proyecto **Vite**:
-   - **Framework Preset:** `Vite`
-   - **Build Command:** `npm run build` o `vite build`
-   - **Output Directory:** `dist`
-4. Haz clic en **Deploy**. ¡Listo!
+3. Vercel detectará automáticamente que es un proyecto **Next.js**:
+   - **Framework Preset:** `Next.js`
+   - **Build Command:** `next build`
+   - **Output Directory:** `.next`
+4. Haz clic en **Deploy**. ¡Listo, despliegue con zero-config!
 
 ### Opción 2: Despliegue directo mediante Vercel CLI
 ```bash
@@ -36,4 +36,4 @@ npm i -g vercel
 vercel
 ```
 
-El archivo `vercel.json` ya se encuentra configurado con las reglas de redirección SPA (`rewrites`) y políticas de caché para los archivos estáticos.
+El archivo `vercel.json` está configurado con `"framework": "nextjs"`.
