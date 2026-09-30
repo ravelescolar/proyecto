@@ -4,9 +4,12 @@ import {
   Clock,
   Car,
   Settings,
-  Plus
+  Plus,
+  LogOut,
+  User
 } from 'lucide-react';
 import { AppSettings } from '../types';
+import { AuthUser } from '../utils/auth';
 import { RavelLogo } from './RavelLogo';
 
 interface HeaderProps {
@@ -16,6 +19,8 @@ interface HeaderProps {
   cuentasCount: number;
   driversCount: number;
   settings: AppSettings;
+  currentUser?: AuthUser | null;
+  onLogout?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -25,6 +30,8 @@ export const Header: React.FC<HeaderProps> = ({
   cuentasCount,
   driversCount,
   settings,
+  currentUser,
+  onLogout,
 }) => {
   return (
     <header className="no-print bg-white/95 backdrop-blur-md border-b border-emerald-100 sticky top-0 z-30 shadow-xs">
@@ -118,10 +125,32 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onOpenSettings}
               title="Configuración general"
-              className="p-2 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+              className="p-2 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
             >
               <Settings className="w-4 h-4" />
             </button>
+
+            {currentUser && onLogout && (
+              <>
+                <div className="h-6 w-px bg-emerald-100 mx-1 hidden sm:block"></div>
+                <div className="flex items-center gap-1.5 pl-1">
+                  <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 rounded-lg border border-emerald-200 text-xs font-semibold text-emerald-950">
+                    <User className="w-3.5 h-3.5 text-emerald-700" />
+                    <span className="truncate max-w-[120px] font-mono">{currentUser.username}</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={onLogout}
+                    title="Cerrar sesión"
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer font-semibold text-xs border border-transparent hover:border-rose-200"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Salir</span>
+                  </button>
+                </div>
+              </>
+            )}
           </nav>
         </div>
       </div>

@@ -21,8 +21,11 @@ import { DocumentPreview } from './components/DocumentPreview';
 import { HistorialCuentas } from './components/HistorialCuentas';
 import { ConductoresPlacas } from './components/ConductoresPlacas';
 import { SettingsModal } from './components/SettingsModal';
+import { LoginScreen } from './components/LoginScreen';
+import { AuthUser, getCurrentSession, logoutUser } from './utils/auth';
 
 export default function App() {
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => getCurrentSession());
   const [currentTab, setCurrentTab] = useState<'form' | 'preview' | 'history' | 'drivers'>('form');
   const [cuentas, setCuentas] = useState<CuentaDeCobro[]>([]);
   const [drivers, setDrivers] = useState<DriverProfile[]>([]);
@@ -41,6 +44,13 @@ export default function App() {
     setCuentas(loadCuentas());
     setDrivers(loadDriverProfiles());
     setSettings(loadSettings());
+  };
+
+  const handleLogout = () => {
+    logoutUser();
+    setCurrentUser(null);
+    setCurrentTab('form');
+    setSelectedCuenta(null);
   };
 
   // Generate / Save Cuenta
@@ -149,6 +159,17 @@ export default function App() {
     setCurrentTab('form');
   };
 
+  // If user is not authenticated, render corporate Login Screen
+  if (!currentUser) {
+    return (
+      <LoginScreen
+        onLoginSuccess={(user) => setCurrentUser(user)}
+        companyName={settings.companyName}
+        companyNit={settings.companyNit}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50/40 via-white to-emerald-50/20 text-slate-800 flex flex-col font-sans">
       <Header
@@ -163,6 +184,8 @@ export default function App() {
         cuentasCount={cuentas.length}
         driversCount={drivers.length}
         settings={settings}
+        currentUser={currentUser}
+        onLogout={handleLogout}
       />
 
       <main className="flex-1 py-6 px-4 sm:px-6 lg:px-8">

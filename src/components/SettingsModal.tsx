@@ -9,10 +9,15 @@ import {
   Building,
   Hash,
   Image as ImageIcon,
-  RotateCcw
+  RotateCcw,
+  Lock,
+  KeyRound,
+  ShieldCheck,
+  UserCheck
 } from 'lucide-react';
 import { AppSettings } from '../types';
 import { loadSettings, saveSettings, exportAllData, importAllData } from '../utils/storage';
+import { getRegisteredCredentials, updateCredentials } from '../utils/auth';
 import { RavelLogo } from './RavelLogo';
 
 interface SettingsModalProps {
@@ -29,6 +34,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [settings, setSettings] = useState<AppSettings>(loadSettings());
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
+
+  // Security Credentials state
+  const currentCredentials = getRegisteredCredentials();
+  const [authUsername, setAuthUsername] = useState(currentCredentials.username);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [authMessage, setAuthMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   if (!isOpen) return null;
 
@@ -250,6 +263,127 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               onChange={(e) => setSettings({ ...settings, defaultConcept: e.target.value })}
               className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white focus:ring-2 focus:ring-emerald-500"
             />
+          </div>
+
+          {/* Security & Access Credentials */}
+          <div className="border-t border-slate-100 pt-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-1.5 bg-emerald-100 rounded-lg text-emerald-800">
+                <Lock className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="text-xs font-bold text-emerald-950 uppercase tracking-wider block">
+                  Seguridad y Credenciales de Acceso
+                </span>
+                <span className="text-[11px] text-slate-500">
+                  Modifica el usuario o contraseña con la que ingresas al sistema
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200 space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    Usuario del Sistema:
+                  </label>
+                  <input
+                    type="text"
+                    value={authUsername}
+                    onChange={(e) => setAuthUsername(e.target.value)}
+                    placeholder="Ej: admin"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white font-mono focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    Contraseña Actual:
+                  </label>
+                  <input
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="Contraseña actual requerida"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white font-mono focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    Nueva Contraseña:
+                  </label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Mínimo 6 caracteres"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white font-mono focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    Confirmar Nueva Contraseña:
+                  </label>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Repite la nueva contraseña"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white font-mono focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {authMessage && (
+                <div
+                  className={`p-2.5 rounded-lg text-xs font-medium ${
+                    authMessage.type === 'success'
+                      ? 'bg-emerald-100/70 text-emerald-900 border border-emerald-300'
+                      : 'bg-rose-50 text-rose-800 border border-rose-200'
+                  }`}
+                >
+                  {authMessage.text}
+                </div>
+              )}
+
+              <div className="flex justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMessage(null);
+                    if (!currentPassword) {
+                      setAuthMessage({ type: 'error', text: 'Debes ingresar tu contraseña actual para realizar cambios.' });
+                      return;
+                    }
+                    if (newPassword && newPassword !== confirmPassword) {
+                      setAuthMessage({ type: 'error', text: 'La nueva contraseña y su confirmación no coinciden.' });
+                      return;
+                    }
+                    if (newPassword && newPassword.length < 5) {
+                      setAuthMessage({ type: 'error', text: 'La nueva contraseña debe tener al menos 5 caracteres.' });
+                      return;
+                    }
+
+                    const res = updateCredentials(currentPassword, authUsername, newPassword || undefined);
+                    if (res.success) {
+                      setAuthMessage({ type: 'success', text: '¡Credenciales actualizadas exitosamente!' });
+                      setCurrentPassword('');
+                      setNewPassword('');
+                      setConfirmPassword('');
+                      setTimeout(() => setAuthMessage(null), 4000);
+                    } else {
+                      setAuthMessage({ type: 'error', text: res.message });
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-emerald-900 bg-emerald-100 hover:bg-emerald-200 rounded-lg transition-colors cursor-pointer"
+                >
+                  <KeyRound className="w-3.5 h-3.5 text-emerald-800" />
+                  <span>Actualizar Credenciales</span>
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Backup & Restore */}
