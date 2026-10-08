@@ -30,6 +30,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    if (isOpen) {
+      setSettings(loadSettings());
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleSave = (e: React.FormEvent) => {

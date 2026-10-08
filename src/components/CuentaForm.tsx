@@ -35,15 +35,19 @@ interface CuentaFormProps {
   onGenerate: (cuenta: CuentaDeCobro) => void;
   onLoadPrevious?: () => void;
   initialCuenta?: CuentaDeCobro | null;
+  settings?: AppSettings;
+  driverProfiles?: DriverProfile[];
 }
 
 export const CuentaForm: React.FC<CuentaFormProps> = ({
   onGenerate,
   onLoadPrevious,
   initialCuenta,
+  settings: propSettings,
+  driverProfiles: propDrivers,
 }) => {
-  const [settings] = useState<AppSettings>(loadSettings());
-  const [driverProfiles] = useState<DriverProfile[]>(loadDriverProfiles());
+  const settings = propSettings || loadSettings();
+  const driverProfiles = propDrivers || loadDriverProfiles();
 
   // Form State
   const [consecutiveNum, setConsecutiveNum] = useState<number>(() => {
@@ -111,7 +115,7 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
   // Error validation
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Sync initialCuenta when prop changes
+  // Sync initialCuenta or settings consecutive when props change
   useEffect(() => {
     if (initialCuenta) {
       setConsecutiveNum(initialCuenta.consecutive);
@@ -125,8 +129,10 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
       setServices(initialCuenta.services);
       setLegalConcept(initialCuenta.legalConcept);
       setPaymentData(initialCuenta.paymentData);
+    } else if (!isCustomConsecutive && settings.nextConsecutive) {
+      setConsecutiveNum(settings.nextConsecutive);
     }
-  }, [initialCuenta]);
+  }, [initialCuenta, settings.nextConsecutive, isCustomConsecutive]);
 
   // Update plate suggestions on input change
   const handlePlateChange = (val: string) => {
@@ -1011,7 +1017,7 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
         {/* Form Actions Footer */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-emerald-100 shadow-xs">
           <div className="text-xs text-slate-500">
-            Al hacer clic en generar, los datos del conductor y placa se actualizarán en la base de datos local.
+            Al hacer clic en generar, la cuenta de cobro y los datos del conductor se guardarán en Firebase Cloud Firestore.
           </div>
 
           <div className="flex items-center gap-3 w-full sm:w-auto justify-end">

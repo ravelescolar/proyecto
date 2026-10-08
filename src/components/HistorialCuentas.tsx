@@ -6,7 +6,12 @@ import {
   Copy,
   Trash2,
   FileSpreadsheet,
-  Plus
+  Plus,
+  X,
+  User,
+  Car,
+  Filter,
+  RotateCcw
 } from 'lucide-react';
 import { CuentaDeCobro, CuentaStatus } from '../types';
 import { formatCurrency } from '../utils/numberToWords';
@@ -31,17 +36,49 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
   onNew,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchTarget, setSearchTarget] = useState<'all' | 'driver' | 'plate'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | CuentaStatus>('all');
   const [cuentaToDelete, setCuentaToDelete] = useState<CuentaDeCobro | null>(null);
 
+  // Helper to normalize strings for accent-insensitive and case-insensitive matching
+  const normalizeText = (text: string) =>
+    (text || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+
+  // Helper to normalize vehicle plates (e.g. "WTL-890" -> "WTL890")
+  const cleanPlateText = (text: string) =>
+    (text || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
   const filtered = cuentas.filter((c) => {
-    const term = searchTerm.toLowerCase();
-    const matchSearch =
-      c.consecutiveFormatted.toLowerCase().includes(term) ||
-      c.driverName.toLowerCase().includes(term) ||
-      c.driverId.toLowerCase().includes(term) ||
-      c.vehiclePlate.toLowerCase().includes(term) ||
-      c.services.some((s) => s.clientDetail.toLowerCase().includes(term));
+    const rawTerm = searchTerm.trim();
+    let matchSearch = true;
+
+    if (rawTerm) {
+      const normQuery = normalizeText(rawTerm);
+      const plateQuery = cleanPlateText(rawTerm);
+
+      const driverMatches =
+        normalizeText(c.driverName).includes(normQuery) ||
+        Boolean(c.driverId && c.driverId.replace(/[^0-9]/g, '').includes(rawTerm.replace(/[^0-9]/g, '')));
+
+      const plateMatches =
+        (plateQuery.length > 0 && cleanPlateText(c.vehiclePlate).includes(plateQuery)) ||
+        c.services.some((s) => plateQuery.length > 0 && cleanPlateText(s.plate).includes(plateQuery));
+
+      const consecutiveMatches = normalizeText(c.consecutiveFormatted).includes(normQuery);
+
+      if (searchTarget === 'driver') {
+        matchSearch = driverMatches;
+      } else if (searchTarget === 'plate') {
+        matchSearch = plateMatches;
+      } else {
+        // 'all' checks driver, plate, consecutive, and general fields
+        matchSearch = driverMatches || plateMatches || consecutiveMatches;
+      }
+    }
 
     const matchStatus = statusFilter === 'all' ? true : c.status === statusFilter;
 
@@ -134,24 +171,85 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
       </div>
 
       {/* Search and Filters Bar */}
-      <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
-        <div className="relative w-full md:w-96">
-          <Search className="w-4 h-4 text-emerald-600 absolute left-3 top-3" />
-          <input
-            type="text"
-            placeholder="Buscar por placa, conductor, cédula, consecutivo..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-xs rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-          />
+      <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-xs space-y-3">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          {/* Main Search Input */}
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-emerald-600 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              placeholder={
+                searchTarget === 'driver'
+                  ? 'Buscar por nombre o cédula del conductor...'
+                  : searchTarget === 'plate'
+                  ? 'Buscar por número de placa (ej: WTL-890 o WTL)...'
+                  : 'Buscar por nombre de conductor o número de placa...'
+              }
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-9 py-2.5 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-slate-50/50 hover:bg-white transition-colors"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                title="Limpiar búsqueda"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Quick Target Filter Buttons (Todos, Conductor, Placa) */}
+          <div className="flex items-center gap-1 p-1 bg-slate-100/80 rounded-xl border border-slate-200/80 shrink-0">
+            <button
+              type="button"
+              onClick={() => setSearchTarget('all')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                searchTarget === 'all'
+                  ? 'bg-white text-emerald-950 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Filter className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Todos</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSearchTarget('driver')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                searchTarget === 'driver'
+                  ? 'bg-white text-emerald-950 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <User className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Conductor</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSearchTarget('plate')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                searchTarget === 'plate'
+                  ? 'bg-white text-emerald-950 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Car className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Placa</span>
+            </button>
+          </div>
         </div>
 
-        {/* Filter controls */}
-        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-between md:justify-end">
+        {/* Secondary Bar: Status Filters, Export CSV, and New CTA */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t border-slate-100">
+          {/* Status filter tabs */}
           <div className="flex items-center gap-1 p-1 bg-emerald-50/70 border border-emerald-100 rounded-lg">
             <button
+              type="button"
               onClick={() => setStatusFilter('all')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+              className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                 statusFilter === 'all'
                   ? 'bg-white text-emerald-950 shadow-xs font-bold'
                   : 'text-emerald-800 hover:text-emerald-950'
@@ -160,8 +258,9 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
               Todas ({cuentas.length})
             </button>
             <button
+              type="button"
               onClick={() => setStatusFilter('emitida')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+              className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                 statusFilter === 'emitida'
                   ? 'bg-white text-orange-900 shadow-xs font-bold'
                   : 'text-slate-600 hover:text-orange-800'
@@ -170,8 +269,9 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
               Emitidas ({totalEmitidas})
             </button>
             <button
+              type="button"
               onClick={() => setStatusFilter('pagada')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+              className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                 statusFilter === 'pagada'
                   ? 'bg-white text-emerald-900 shadow-xs font-bold'
                   : 'text-slate-600 hover:text-emerald-900'
@@ -181,39 +281,110 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
             </button>
           </div>
 
-          <button
-            onClick={exportToCSV}
-            title="Exportar a archivo Excel / CSV"
-            className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-emerald-900 bg-white border border-emerald-200 hover:bg-emerald-50 rounded-lg transition-colors"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-            CSV
-          </button>
+          <div className="flex items-center gap-2 justify-end">
+            <button
+              type="button"
+              onClick={exportToCSV}
+              title="Exportar cuentas visibles a CSV"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-900 bg-white border border-emerald-200 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+              <span>CSV ({filtered.length})</span>
+            </button>
 
-          <button
-            onClick={onNew}
-            className="flex items-center gap-1 px-3.5 py-1.5 text-xs font-bold text-white bg-orange-500 hover:bg-orange-600 rounded-lg shadow-xs transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5 text-white" />
-            Nueva
-          </button>
+            <button
+              type="button"
+              onClick={onNew}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-orange-500 hover:bg-orange-600 rounded-lg shadow-xs transition-colors cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5 text-white" />
+              <span>Nueva Cuenta</span>
+            </button>
+          </div>
         </div>
+
+        {/* Search Results Summary Banner when filtering */}
+        {(searchTerm.trim() !== '' || statusFilter !== 'all' || searchTarget !== 'all') && (
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-emerald-50/50 rounded-lg border border-emerald-100 text-xs text-slate-600">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-emerald-950">
+                Mostrando {filtered.length} de {cuentas.length} {cuentas.length === 1 ? 'cuenta' : 'cuentas'}
+              </span>
+              {searchTerm.trim() && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-emerald-200 text-emerald-900 font-medium">
+                  {searchTarget === 'driver' ? 'Conductor: ' : searchTarget === 'plate' ? 'Placa: ' : 'Búsqueda: '}
+                  <strong>"{searchTerm.trim()}"</strong>
+                </span>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm('');
+                setSearchTarget('all');
+                setStatusFilter('all');
+              }}
+              className="flex items-center gap-1 text-[11px] font-semibold text-rose-600 hover:text-rose-800 underline transition-colors cursor-pointer"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Restablecer filtros</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Cuentas Table */}
       <div className="bg-white rounded-xl border border-emerald-100 shadow-xs overflow-hidden">
         {filtered.length === 0 ? (
-          <div className="py-16 text-center text-slate-400">
-            <FileText className="w-10 h-10 mx-auto mb-2 text-emerald-300 stroke-1" />
-            <p className="text-sm font-semibold text-slate-600">No se encontraron cuentas de cobro</p>
-            <p className="text-xs text-slate-400 mt-1">Intenta con otro término de búsqueda o crea una nueva.</p>
-            <button
-              onClick={onNew}
-              className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-orange-500 rounded-lg hover:bg-orange-600"
-            >
-              <Plus className="w-4 h-4 text-white" />
-              Crear primera cuenta
-            </button>
+          <div className="py-16 px-4 text-center">
+            {searchTerm.trim() ? (
+              <div className="max-w-md mx-auto space-y-3">
+                <div className="w-12 h-12 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center mx-auto">
+                  <Search className="w-6 h-6" />
+                </div>
+                <h4 className="text-sm font-bold text-slate-900">
+                  No se encontraron resultados
+                </h4>
+                <p className="text-xs text-slate-500">
+                  No encontramos ninguna cuenta que coincida con{' '}
+                  <strong className="text-slate-800">"{searchTerm.trim()}"</strong>
+                  {searchTarget !== 'all' && ` en el filtro de ${searchTarget === 'driver' ? 'conductores' : 'placas'}`}.
+                </p>
+                <div className="pt-2 flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Limpiar búsqueda</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onNew}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-orange-500 hover:bg-orange-600 rounded-lg shadow-xs transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-white" />
+                    <span>Nueva Cuenta</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <FileText className="w-10 h-10 mx-auto text-emerald-300 stroke-1" />
+                <p className="text-sm font-semibold text-slate-600">No se encontraron cuentas de cobro</p>
+                <p className="text-xs text-slate-400">Aún no hay cuentas registradas en este estado.</p>
+                <button
+                  type="button"
+                  onClick={onNew}
+                  className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-orange-500 rounded-lg hover:bg-orange-600 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 text-white" />
+                  <span>Crear primera cuenta</span>
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -284,13 +455,14 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
                     <td className="py-3 px-3 text-center">
                       <select
                         value={cuenta.status}
+                        disabled={cuenta.status === 'anulada'}
                         onChange={(e) => onStatusChange(cuenta.id, e.target.value as CuentaStatus)}
-                        className={`text-[11px] font-bold px-2 py-1 rounded-md border text-center transition-colors cursor-pointer ${
+                        className={`text-[11px] font-bold px-2 py-1 rounded-md border text-center transition-colors ${
                           cuenta.status === 'pagada'
-                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300 cursor-pointer'
                             : cuenta.status === 'anulada'
-                            ? 'bg-rose-50 text-rose-800 border-rose-300'
-                            : 'bg-orange-50 text-orange-800 border-orange-300'
+                            ? 'bg-rose-50 text-rose-800 border-rose-300 cursor-not-allowed opacity-80'
+                            : 'bg-orange-50 text-orange-800 border-orange-300 cursor-pointer'
                         }`}
                       >
                         <option value="emitida">Emitida</option>
@@ -363,7 +535,7 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
             </p>
 
             <div className="mt-3 p-3 bg-rose-50/80 rounded-xl border border-rose-200 text-xs text-rose-800">
-              ⚠️ Esta acción no se puede deshacer y se borrará del historial local.
+              ⚠️ Esta acción no se puede deshacer y se eliminará permanentemente de Firebase Cloud Firestore.
             </div>
 
             <div className="mt-6 flex items-center justify-end gap-3">

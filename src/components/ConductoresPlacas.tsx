@@ -84,8 +84,9 @@ export const ConductoresPlacas: React.FC<ConductoresPlacasProps> = ({
 
   const handleAddClientTag = () => {
     if (clientInput.trim()) {
+      if (frequentClients.length >= 10) return;
       if (!frequentClients.includes(clientInput.trim())) {
-        setFrequentClients([...frequentClients, clientInput.trim()]);
+        setFrequentClients([...frequentClients, clientInput.trim().slice(0, 200)]);
       }
       setClientInput('');
     }
@@ -98,7 +99,6 @@ export const ConductoresPlacas: React.FC<ConductoresPlacasProps> = ({
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!plate.trim() || !driverName.trim()) {
-      alert('La placa y el nombre son obligatorios');
       return;
     }
 

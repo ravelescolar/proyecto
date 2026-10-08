@@ -1,0 +1,499 @@
+{
+  "entities": {
+    "AppSettings": {
+      "title": "AppSettings",
+      "description": "Configuración general del sistema y consecutivo por usuario para Transportes Ravel.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID del usuario propietario de la configuración.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "prefix": {
+          "type": "string",
+          "description": "Prefijo para la numeración de cuentas de cobro.",
+          "minLength": 1,
+          "maxLength": 10
+        },
+        "nextConsecutive": {
+          "type": "number",
+          "description": "Siguiente número consecutivo disponible."
+        },
+        "companyName": {
+          "type": "string",
+          "description": "Razón social de la empresa pagadora.",
+          "minLength": 1,
+          "maxLength": 150
+        },
+        "companyNit": {
+          "type": "string",
+          "description": "NIT de la empresa pagadora.",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "companyAddress": {
+          "type": "string",
+          "description": "Dirección física de la empresa.",
+          "minLength": 0,
+          "maxLength": 200
+        },
+        "companyPhone": {
+          "type": "string",
+          "description": "Teléfono de contacto de la empresa.",
+          "minLength": 0,
+          "maxLength": 50
+        },
+        "companyEmail": {
+          "type": "string",
+          "description": "Correo electrónico corporativo.",
+          "minLength": 0,
+          "maxLength": 150
+        },
+        "defaultCity": {
+          "type": "string",
+          "description": "Ciudad predeterminada de expedición.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "defaultConcept": {
+          "type": "string",
+          "description": "Concepto legal predeterminado para las cuentas de cobro.",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "companyLogoUrl": {
+          "type": "string",
+          "description": "Logo corporativo en formato Data URL o cadena vacía.",
+          "minLength": 0,
+          "maxLength": 500000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Fecha de creación del registro en el servidor."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Fecha de última actualización en el servidor."
+        }
+      },
+      "required": [
+        "ownerId",
+        "prefix",
+        "nextConsecutive",
+        "companyName",
+        "companyNit",
+        "companyAddress",
+        "companyPhone",
+        "companyEmail",
+        "defaultCity",
+        "defaultConcept",
+        "companyLogoUrl",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "DriverProfile": {
+      "title": "DriverProfile",
+      "description": "Perfil de conductor, vehículo (placa), datos bancarios y rutas frecuentes.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID del usuario propietario del registro.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "plate": {
+          "type": "string",
+          "description": "Placa del vehículo automotor.",
+          "minLength": 1,
+          "maxLength": 20
+        },
+        "driverName": {
+          "type": "string",
+          "description": "Nombre completo del conductor.",
+          "minLength": 1,
+          "maxLength": 150
+        },
+        "idNumber": {
+          "type": "string",
+          "description": "Documento de identidad del conductor.",
+          "minLength": 0,
+          "maxLength": 50
+        },
+        "phone": {
+          "type": "string",
+          "description": "Teléfono celular del conductor.",
+          "minLength": 0,
+          "maxLength": 50
+        },
+        "paymentBank": {
+          "type": "string",
+          "description": "Entidad bancaria predeterminada del conductor.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "paymentAccountNumber": {
+          "type": "string",
+          "description": "Número de cuenta bancaria.",
+          "minLength": 0,
+          "maxLength": 100
+        },
+        "paymentAccountType": {
+          "type": "string",
+          "description": "Tipo de cuenta bancaria.",
+          "enum": [
+            "Ahorros",
+            "Corriente",
+            "Nequi",
+            "Daviplata",
+            "Depósito de bajo monto",
+            "Otro"
+          ],
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "paymentAccountHolder": {
+          "type": "string",
+          "description": "Nombre del titular de la cuenta bancaria.",
+          "minLength": 0,
+          "maxLength": 150
+        },
+        "paymentIdentification": {
+          "type": "string",
+          "description": "Identificación del titular de la cuenta.",
+          "minLength": 0,
+          "maxLength": 50
+        },
+        "frequentClients": {
+          "type": "array",
+          "description": "Lista acotada de hasta 10 clientes o rutas frecuentes."
+        },
+        "totalAccountsGenerated": {
+          "type": "number",
+          "description": "Total de cuentas de cobro generadas para este vehículo."
+        },
+        "lastUsedAt": {
+          "type": "string",
+          "description": "Fecha ISO de último uso del perfil.",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp de creación en el servidor."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp de actualización en el servidor."
+        }
+      },
+      "required": [
+        "ownerId",
+        "plate",
+        "driverName",
+        "idNumber",
+        "phone",
+        "paymentBank",
+        "paymentAccountNumber",
+        "paymentAccountType",
+        "paymentAccountHolder",
+        "paymentIdentification",
+        "frequentClients",
+        "totalAccountsGenerated",
+        "lastUsedAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CuentaDeCobro": {
+      "title": "CuentaDeCobro",
+      "description": "Documento principal de cuenta de cobro emitida para Transportes Ravel.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID del usuario propietario de la cuenta de cobro.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "consecutive": {
+          "type": "number",
+          "description": "Número consecutivo de la cuenta."
+        },
+        "consecutiveFormatted": {
+          "type": "string",
+          "description": "Consecutivo formateado con prefijo (ej. CC-0101).",
+          "minLength": 1,
+          "maxLength": 30
+        },
+        "date": {
+          "type": "string",
+          "description": "Fecha de emisión (YYYY-MM-DD).",
+          "minLength": 1,
+          "maxLength": 30
+        },
+        "paymentDueDate": {
+          "type": "string",
+          "description": "Fecha pactada de pago (YYYY-MM-DD).",
+          "minLength": 1,
+          "maxLength": 30
+        },
+        "city": {
+          "type": "string",
+          "description": "Ciudad de emisión.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "companyName": {
+          "type": "string",
+          "description": "Empresa pagadora.",
+          "minLength": 1,
+          "maxLength": 150
+        },
+        "companyNit": {
+          "type": "string",
+          "description": "NIT de la empresa pagadora.",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "driverName": {
+          "type": "string",
+          "description": "Nombre completo del conductor acreedor.",
+          "minLength": 1,
+          "maxLength": 150
+        },
+        "driverId": {
+          "type": "string",
+          "description": "Cédula o identificación del conductor.",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "vehiclePlate": {
+          "type": "string",
+          "description": "Placa del vehículo asociado.",
+          "minLength": 1,
+          "maxLength": 20
+        },
+        "driverPhone": {
+          "type": "string",
+          "description": "Teléfono del conductor.",
+          "minLength": 0,
+          "maxLength": 50
+        },
+        "totalAmount": {
+          "type": "number",
+          "description": "Valor total a pagar en pesos colombianos (COP)."
+        },
+        "amountInWords": {
+          "type": "string",
+          "description": "Monto total expresado en letras.",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "legalConcept": {
+          "type": "string",
+          "description": "Concepto legal del cobro.",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "paymentBank": {
+          "type": "string",
+          "description": "Entidad bancaria para el pago.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "paymentAccountNumber": {
+          "type": "string",
+          "description": "Número de cuenta para el pago.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "paymentAccountType": {
+          "type": "string",
+          "description": "Tipo de cuenta bancaria para el pago.",
+          "enum": [
+            "Ahorros",
+            "Corriente",
+            "Nequi",
+            "Daviplata",
+            "Depósito de bajo monto",
+            "Otro"
+          ],
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "paymentAccountHolder": {
+          "type": "string",
+          "description": "Titular de la cuenta bancaria.",
+          "minLength": 0,
+          "maxLength": 150
+        },
+        "paymentIdentification": {
+          "type": "string",
+          "description": "Documento del titular de la cuenta.",
+          "minLength": 0,
+          "maxLength": 50
+        },
+        "signatureDataUrl": {
+          "type": "string",
+          "description": "Firma digital en Data URL o cadena vacía.",
+          "minLength": 0,
+          "maxLength": 500000
+        },
+        "companyLogoUrl": {
+          "type": "string",
+          "description": "Logo corporativo en Data URL o cadena vacía.",
+          "minLength": 0,
+          "maxLength": 500000
+        },
+        "notes": {
+          "type": "string",
+          "description": "Observaciones adicionales.",
+          "minLength": 0,
+          "maxLength": 1000
+        },
+        "status": {
+          "type": "string",
+          "description": "Estado de la cuenta de cobro (anulada es estado terminal).",
+          "enum": ["emitida", "pagada", "anulada"],
+          "minLength": 1,
+          "maxLength": 20
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp de creación en el servidor."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp de última actualización en el servidor."
+        }
+      },
+      "required": [
+        "ownerId",
+        "consecutive",
+        "consecutiveFormatted",
+        "date",
+        "paymentDueDate",
+        "city",
+        "companyName",
+        "companyNit",
+        "driverName",
+        "driverId",
+        "vehiclePlate",
+        "driverPhone",
+        "totalAmount",
+        "amountInWords",
+        "legalConcept",
+        "paymentBank",
+        "paymentAccountNumber",
+        "paymentAccountType",
+        "paymentAccountHolder",
+        "paymentIdentification",
+        "signatureDataUrl",
+        "companyLogoUrl",
+        "notes",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ServiceItem": {
+      "title": "ServiceItem",
+      "description": "Ítem individual de servicio de transporte perteneciente a una cuenta de cobro.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID del usuario propietario.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "cuentaId": {
+          "type": "string",
+          "description": "ID de la cuenta de cobro padre.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "orderIndex": {
+          "type": "number",
+          "description": "Orden de la fila en la tabla de servicios."
+        },
+        "date": {
+          "type": "string",
+          "description": "Fecha en que se prestó el recorrido (YYYY-MM-DD).",
+          "minLength": 1,
+          "maxLength": 30
+        },
+        "plate": {
+          "type": "string",
+          "description": "Placa del vehículo que realizó el servicio.",
+          "minLength": 1,
+          "maxLength": 20
+        },
+        "clientDetail": {
+          "type": "string",
+          "description": "Detalle del cliente o ruta realizada.",
+          "minLength": 0,
+          "maxLength": 300
+        },
+        "value": {
+          "type": "number",
+          "description": "Valor del recorrido en pesos colombianos (COP)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp de creación en el servidor."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp de actualización en el servidor."
+        }
+      },
+      "required": [
+        "ownerId",
+        "cuentaId",
+        "orderIndex",
+        "date",
+        "plate",
+        "clientDetail",
+        "value",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/settings/{userId}": {
+      "schema": "AppSettings",
+      "description": "Documento de configuración general del sistema aislado por usuario."
+    },
+    "/drivers/{driverId}": {
+      "schema": "DriverProfile",
+      "description": "Perfiles de vehículos, placas y conductores registrados por el usuario."
+    },
+    "/cuentas/{cuentaId}": {
+      "schema": "CuentaDeCobro",
+      "description": "Cuentas de cobro emitidas y gestionadas por el usuario."
+    },
+    "/cuentas/{cuentaId}/services/{serviceId}": {
+      "schema": "ServiceItem",
+      "description": "Subcolección de servicios de transporte asociados a una cuenta de cobro."
+    }
+  }
+}

@@ -1,10 +1,11 @@
 import React from 'react';
 import {
-  FileText,
   Clock,
   Car,
   Settings,
-  Plus
+  Plus,
+  LogOut,
+  Cloud
 } from 'lucide-react';
 import { AppSettings } from '../types';
 import { RavelLogo } from './RavelLogo';
@@ -16,6 +17,9 @@ interface HeaderProps {
   cuentasCount: number;
   driversCount: number;
   settings: AppSettings;
+  userEmail?: string | null;
+  isSyncing?: boolean;
+  onSignOut?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -25,6 +29,9 @@ export const Header: React.FC<HeaderProps> = ({
   cuentasCount,
   driversCount,
   settings,
+  userEmail,
+  isSyncing,
+  onSignOut,
 }) => {
   return (
     <header className="no-print bg-white/95 backdrop-blur-md border-b border-emerald-100 sticky top-0 z-30 shadow-xs">
@@ -49,6 +56,23 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
                 <span className="text-[10px] font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded">
                   NIT: {settings.companyNit || '900.388.163-2'}
+                </span>
+                <span
+                  className={`hidden md:inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded border ${
+                    isSyncing
+                      ? 'bg-orange-50 text-orange-800 border-orange-200'
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  }`}
+                  title={userEmail ? `Sincronizado en Firebase (${userEmail})` : 'Sincronizado en Firebase'}
+                >
+                  <Cloud className={`w-3 h-3 ${isSyncing ? 'text-orange-500 animate-pulse' : 'text-emerald-600'}`} />
+                  <span>
+                    {isSyncing
+                      ? 'Guardando en la nube...'
+                      : userEmail
+                      ? `Nube: ${userEmail}`
+                      : 'Sincronizado en Firebase'}
+                  </span>
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 font-medium">
@@ -122,6 +146,16 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Settings className="w-4 h-4" />
             </button>
+
+            {onSignOut && (
+              <button
+                onClick={onSignOut}
+                title={userEmail ? `Cerrar sesión (${userEmail})` : 'Cerrar sesión'}
+                className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            )}
           </nav>
         </div>
       </div>

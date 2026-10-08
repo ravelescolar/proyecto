@@ -1,0 +1,485 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // 1. GLOBAL SAFETY NET (Default-Deny Catch-All)
+    // =========================================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // 2. HARDENED GLOBAL PRIMITIVES
+    // =========================================================================
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidAccountType(val) {
+      return val is string
+        && val.size() >= 1
+        && val.size() <= 50
+        && val in ['Ahorros', 'Corriente', 'Nequi', 'Daviplata', 'Depósito de bajo monto', 'Otro'];
+    }
+
+    function isValidCuentaStatus(val) {
+      return val is string
+        && val.size() >= 1
+        && val.size() <= 20
+        && val in ['emitida', 'pagada', 'anulada'];
+    }
+
+    // =========================================================================
+    // 3. VALIDATION BLUEPRINTS (Anti-Update-Gap Helpers)
+    // =========================================================================
+
+    function isValidAppSettings(data, userId) {
+      return data.keys().hasAll([
+          'ownerId',
+          'prefix',
+          'nextConsecutive',
+          'companyName',
+          'companyNit',
+          'companyAddress',
+          'companyPhone',
+          'companyEmail',
+          'defaultCity',
+          'defaultConcept',
+          'companyLogoUrl',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId',
+          'prefix',
+          'nextConsecutive',
+          'companyName',
+          'companyNit',
+          'companyAddress',
+          'companyPhone',
+          'companyEmail',
+          'defaultCity',
+          'defaultConcept',
+          'companyLogoUrl',
+          'createdAt',
+          'updatedAt'
+        ])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.ownerId == userId
+        && data.prefix is string && data.prefix.size() >= 1 && data.prefix.size() <= 10
+        && (data.nextConsecutive is int || data.nextConsecutive is float) && data.nextConsecutive >= 1 && data.nextConsecutive <= 9999999
+        && data.companyName is string && data.companyName.size() >= 1 && data.companyName.size() <= 150
+        && data.companyNit is string && data.companyNit.size() >= 1 && data.companyNit.size() <= 50
+        && data.companyAddress is string && data.companyAddress.size() <= 200
+        && data.companyPhone is string && data.companyPhone.size() <= 50
+        && data.companyEmail is string && data.companyEmail.size() <= 150
+        && data.defaultCity is string && data.defaultCity.size() >= 1 && data.defaultCity.size() <= 100
+        && data.defaultConcept is string && data.defaultConcept.size() >= 1 && data.defaultConcept.size() <= 1000
+        && data.companyLogoUrl is string && data.companyLogoUrl.size() <= 500000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDriverProfile(data) {
+      return data.keys().hasAll([
+          'ownerId',
+          'plate',
+          'driverName',
+          'idNumber',
+          'phone',
+          'paymentBank',
+          'paymentAccountNumber',
+          'paymentAccountType',
+          'paymentAccountHolder',
+          'paymentIdentification',
+          'frequentClients',
+          'totalAccountsGenerated',
+          'lastUsedAt',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId',
+          'plate',
+          'driverName',
+          'idNumber',
+          'phone',
+          'paymentBank',
+          'paymentAccountNumber',
+          'paymentAccountType',
+          'paymentAccountHolder',
+          'paymentIdentification',
+          'frequentClients',
+          'totalAccountsGenerated',
+          'lastUsedAt',
+          'createdAt',
+          'updatedAt'
+        ])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.plate is string && data.plate.size() >= 1 && data.plate.size() <= 20
+        && data.driverName is string && data.driverName.size() >= 1 && data.driverName.size() <= 150
+        && data.idNumber is string && data.idNumber.size() <= 50
+        && data.phone is string && data.phone.size() <= 50
+        && data.paymentBank is string && data.paymentBank.size() >= 1 && data.paymentBank.size() <= 100
+        && data.paymentAccountNumber is string && data.paymentAccountNumber.size() <= 100
+        && isValidAccountType(data.paymentAccountType)
+        && data.paymentAccountHolder is string && data.paymentAccountHolder.size() <= 150
+        && data.paymentIdentification is string && data.paymentIdentification.size() <= 50
+        && data.frequentClients is list
+        && data.frequentClients.size() <= 10
+        && (data.frequentClients.size() == 0 || (data.frequentClients[0] is string && data.frequentClients[0].size() >= 1 && data.frequentClients[0].size() <= 200))
+        && (data.totalAccountsGenerated is int || data.totalAccountsGenerated is float) && data.totalAccountsGenerated >= 0 && data.totalAccountsGenerated <= 999999
+        && data.lastUsedAt is string && data.lastUsedAt.size() >= 1 && data.lastUsedAt.size() <= 50
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCuentaDeCobro(data) {
+      return data.keys().hasAll([
+          'ownerId',
+          'consecutive',
+          'consecutiveFormatted',
+          'date',
+          'paymentDueDate',
+          'city',
+          'companyName',
+          'companyNit',
+          'driverName',
+          'driverId',
+          'vehiclePlate',
+          'driverPhone',
+          'totalAmount',
+          'amountInWords',
+          'legalConcept',
+          'paymentBank',
+          'paymentAccountNumber',
+          'paymentAccountType',
+          'paymentAccountHolder',
+          'paymentIdentification',
+          'signatureDataUrl',
+          'companyLogoUrl',
+          'notes',
+          'status',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId',
+          'consecutive',
+          'consecutiveFormatted',
+          'date',
+          'paymentDueDate',
+          'city',
+          'companyName',
+          'companyNit',
+          'driverName',
+          'driverId',
+          'vehiclePlate',
+          'driverPhone',
+          'totalAmount',
+          'amountInWords',
+          'legalConcept',
+          'paymentBank',
+          'paymentAccountNumber',
+          'paymentAccountType',
+          'paymentAccountHolder',
+          'paymentIdentification',
+          'signatureDataUrl',
+          'companyLogoUrl',
+          'notes',
+          'status',
+          'createdAt',
+          'updatedAt'
+        ])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && (data.consecutive is int || data.consecutive is float) && data.consecutive >= 1 && data.consecutive <= 9999999
+        && data.consecutiveFormatted is string && data.consecutiveFormatted.size() >= 1 && data.consecutiveFormatted.size() <= 30
+        && data.date is string && data.date.size() >= 1 && data.date.size() <= 30
+        && data.paymentDueDate is string && data.paymentDueDate.size() >= 1 && data.paymentDueDate.size() <= 30
+        && data.city is string && data.city.size() >= 1 && data.city.size() <= 100
+        && data.companyName is string && data.companyName.size() >= 1 && data.companyName.size() <= 150
+        && data.companyNit is string && data.companyNit.size() >= 1 && data.companyNit.size() <= 50
+        && data.driverName is string && data.driverName.size() >= 1 && data.driverName.size() <= 150
+        && data.driverId is string && data.driverId.size() >= 1 && data.driverId.size() <= 50
+        && data.vehiclePlate is string && data.vehiclePlate.size() >= 1 && data.vehiclePlate.size() <= 20
+        && data.driverPhone is string && data.driverPhone.size() <= 50
+        && (data.totalAmount is int || data.totalAmount is float) && data.totalAmount >= 0 && data.totalAmount <= 999999999999
+        && data.amountInWords is string && data.amountInWords.size() >= 1 && data.amountInWords.size() <= 500
+        && data.legalConcept is string && data.legalConcept.size() >= 1 && data.legalConcept.size() <= 1000
+        && data.paymentBank is string && data.paymentBank.size() >= 1 && data.paymentBank.size() <= 100
+        && data.paymentAccountNumber is string && data.paymentAccountNumber.size() >= 1 && data.paymentAccountNumber.size() <= 100
+        && isValidAccountType(data.paymentAccountType)
+        && data.paymentAccountHolder is string && data.paymentAccountHolder.size() <= 150
+        && data.paymentIdentification is string && data.paymentIdentification.size() <= 50
+        && data.signatureDataUrl is string && data.signatureDataUrl.size() <= 500000
+        && data.companyLogoUrl is string && data.companyLogoUrl.size() <= 500000
+        && data.notes is string && data.notes.size() <= 1000
+        && isValidCuentaStatus(data.status)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidServiceItem(data, cuentaId) {
+      return data.keys().hasAll([
+          'ownerId',
+          'cuentaId',
+          'orderIndex',
+          'date',
+          'plate',
+          'clientDetail',
+          'value',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId',
+          'cuentaId',
+          'orderIndex',
+          'date',
+          'plate',
+          'clientDetail',
+          'value',
+          'createdAt',
+          'updatedAt'
+        ])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && isValidId(data.cuentaId)
+        && data.cuentaId == cuentaId
+        && (data.orderIndex is int || data.orderIndex is float) && data.orderIndex >= 0 && data.orderIndex <= 1000
+        && data.date is string && data.date.size() >= 1 && data.date.size() <= 30
+        && data.plate is string && data.plate.size() >= 1 && data.plate.size() <= 20
+        && data.clientDetail is string && data.clientDetail.size() <= 300
+        && (data.value is int || data.value is float) && data.value >= 0 && data.value <= 999999999999
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Master Gate Helpers for Subcollection `/cuentas/{cuentaId}/services/{serviceId}`
+    function isParentCuentaOwner(cuentaId) {
+      return exists(/databases/$(database)/documents/cuentas/$(cuentaId))
+        && get(/databases/$(database)/documents/cuentas/$(cuentaId)).data.ownerId == request.auth.uid;
+    }
+
+    function isParentCuentaValidAfter(parentData) {
+      return parentData.ownerId == request.auth.uid && parentData.status != 'anulada';
+    }
+
+    function isParentCuentaOwnerAndActiveAfter(cuentaId) {
+      return existsAfter(/databases/$(database)/documents/cuentas/$(cuentaId))
+        && isParentCuentaValidAfter(getAfter(/databases/$(database)/documents/cuentas/$(cuentaId)).data);
+    }
+
+    // =========================================================================
+    // 4. COLLECTION RULES
+    // =========================================================================
+
+    match /settings/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && userId == request.auth.uid && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && existing().ownerId == request.auth.uid;
+
+      allow create: if isVerifiedUser()
+        && isValidId(userId)
+        && userId == request.auth.uid
+        && isValidAppSettings(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if (
+        isVerifiedUser()
+        && isValidId(userId)
+        && userId == request.auth.uid
+        && isValidAppSettings(incoming(), userId)
+        && existing().ownerId == request.auth.uid
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action: Increment Consecutive Only
+          incoming().diff(existing()).affectedKeys().hasOnly(['nextConsecutive', 'updatedAt'])
+          ||
+          // Action: Update Full General Settings
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'prefix',
+            'nextConsecutive',
+            'companyName',
+            'companyNit',
+            'companyAddress',
+            'companyPhone',
+            'companyEmail',
+            'defaultCity',
+            'defaultConcept',
+            'companyLogoUrl',
+            'updatedAt'
+          ])
+        )
+      );
+
+      allow delete: if isVerifiedUser() && isValidId(userId) && userId == request.auth.uid && existing().ownerId == request.auth.uid;
+    }
+
+    match /drivers/{driverId} {
+      allow get: if isSignedIn() && isValidId(driverId) && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && existing().ownerId == request.auth.uid;
+
+      allow create: if isVerifiedUser()
+        && isValidId(driverId)
+        && isValidDriverProfile(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if (
+        isVerifiedUser()
+        && isValidId(driverId)
+        && isValidDriverProfile(incoming())
+        && existing().ownerId == request.auth.uid
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action: Update Driver Profile & Payment Details
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'plate',
+            'driverName',
+            'idNumber',
+            'phone',
+            'paymentBank',
+            'paymentAccountNumber',
+            'paymentAccountType',
+            'paymentAccountHolder',
+            'paymentIdentification',
+            'frequentClients',
+            'totalAccountsGenerated',
+            'lastUsedAt',
+            'updatedAt'
+          ])
+        )
+      );
+
+      allow delete: if isVerifiedUser() && isValidId(driverId) && existing().ownerId == request.auth.uid;
+    }
+
+    match /cuentas/{cuentaId} {
+      allow get: if isSignedIn() && isValidId(cuentaId) && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && existing().ownerId == request.auth.uid;
+
+      allow create: if isVerifiedUser()
+        && isValidId(cuentaId)
+        && isValidCuentaDeCobro(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if (
+        isVerifiedUser()
+        && isValidId(cuentaId)
+        && isValidCuentaDeCobro(incoming())
+        && existing().ownerId == request.auth.uid
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && existing().status != 'anulada'
+        && (
+          // Action 1: Status Transition Only (emitida <-> pagada, or -> anulada)
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          ||
+          // Action 2: Full Document Edit (while not in terminal state 'anulada')
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'consecutive',
+            'consecutiveFormatted',
+            'date',
+            'paymentDueDate',
+            'city',
+            'companyName',
+            'companyNit',
+            'driverName',
+            'driverId',
+            'vehiclePlate',
+            'driverPhone',
+            'totalAmount',
+            'amountInWords',
+            'legalConcept',
+            'paymentBank',
+            'paymentAccountNumber',
+            'paymentAccountType',
+            'paymentAccountHolder',
+            'paymentIdentification',
+            'signatureDataUrl',
+            'companyLogoUrl',
+            'notes',
+            'status',
+            'updatedAt'
+          ])
+        )
+      );
+
+      allow delete: if isVerifiedUser() && isValidId(cuentaId) && existing().ownerId == request.auth.uid;
+
+      match /services/{serviceId} {
+        allow get: if isSignedIn()
+          && isValidId(cuentaId)
+          && isValidId(serviceId)
+          && existing().ownerId == request.auth.uid
+          && isParentCuentaOwner(cuentaId);
+
+        allow list: if isSignedIn()
+          && existing().ownerId == request.auth.uid;
+
+        allow create: if isVerifiedUser()
+          && isValidId(cuentaId)
+          && isValidId(serviceId)
+          && isValidServiceItem(incoming(), cuentaId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && isParentCuentaOwnerAndActiveAfter(cuentaId);
+
+        allow update: if (
+          isVerifiedUser()
+          && isValidId(cuentaId)
+          && isValidId(serviceId)
+          && isValidServiceItem(incoming(), cuentaId)
+          && existing().ownerId == request.auth.uid
+          && incoming().ownerId == existing().ownerId
+          && incoming().cuentaId == existing().cuentaId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'orderIndex',
+            'date',
+            'plate',
+            'clientDetail',
+            'value',
+            'updatedAt'
+          ])
+          && isParentCuentaOwnerAndActiveAfter(cuentaId)
+        );
+
+        allow delete: if isVerifiedUser()
+          && isValidId(cuentaId)
+          && isValidId(serviceId)
+          && existing().ownerId == request.auth.uid
+          && isParentCuentaOwner(cuentaId);
+      }
+    }
+  }
+}
