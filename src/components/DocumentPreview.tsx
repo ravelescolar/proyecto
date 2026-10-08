@@ -98,86 +98,44 @@ Generada a través del sistema oficial de Transportes Ravel.`;
   return (
     <div className="w-full max-w-5xl mx-auto pb-16">
       {/* Top Action Toolbar (Hidden in Print) */}
-      <div className="no-print mb-6 flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-xl border border-emerald-100 shadow-xs">
-        <div className="flex items-center gap-3">
+      <div className="no-print mb-4 sm:mb-6 flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white p-3.5 sm:p-4 rounded-xl border border-emerald-100 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between sm:justify-start gap-2.5">
           <button
+            type="button"
             onClick={onEdit}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
+            className="min-h-[40px] flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer"
           >
-            <ArrowLeft className="w-4 h-4 text-emerald-700" />
-            Volver a editar
+            <ArrowLeft className="w-4 h-4 text-emerald-700 shrink-0" />
+            <span>Volver a editar</span>
           </button>
           
           <div className="flex items-center gap-2 text-xs">
             <span className="text-slate-400">Estado:</span>
             {cuenta.status === 'emitida' && (
-              <span className="font-semibold text-orange-800 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded">
+              <span className="font-semibold text-orange-800">
                 Emitida (Pendiente Pago)
               </span>
             )}
             {cuenta.status === 'pagada' && (
-              <span className="font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+              <span className="font-semibold text-emerald-800">
                 Pagada
               </span>
             )}
             {cuenta.status === 'anulada' && (
-              <span className="font-semibold text-rose-800 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded">
+              <span className="font-semibold text-rose-800">
                 Anulada
               </span>
             )}
-
-            {/* Structure of downloaded file name badge */}
-            <span className="hidden xl:inline-block font-mono text-[11px] font-bold text-orange-950 bg-orange-50/80 border border-orange-200 px-2.5 py-1 rounded-md">
-              <span className="text-orange-700 font-sans font-normal">PDF:</span> {pdfFileName}
-            </span>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {onStatusChange && (
-            <button
-              onClick={() => onStatusChange(cuenta.status === 'pagada' ? 'emitida' : 'pagada')}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border transition-colors ${
-                cuenta.status === 'pagada'
-                  ? 'border-orange-300 bg-orange-50 text-orange-800 hover:bg-orange-100'
-                  : 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-              }`}
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              {cuenta.status === 'pagada' ? 'Marcar Pendiente' : 'Marcar como Pagada'}
-            </button>
-          )}
-
-          <button
-            onClick={handleShareWhatsApp}
-            title="Compartir resumen por WhatsApp"
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-lg transition-colors"
-          >
-            <Share2 className="w-4 h-4 text-emerald-600" />
-            WhatsApp
-          </button>
-
-          <button
-            onClick={handleCopySummary}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors"
-          >
-            {copySuccess ? '¡Copiado!' : 'Copiar Resumen'}
-          </button>
-
-          <button
-            onClick={printDocument}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
-          >
-            <Printer className="w-4 h-4 text-emerald-700" />
-            Imprimir
-          </button>
-
-          {/* Primary CTA - Warm Orange Download Button */}
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
+          {/* Primary CTA - Warm Orange Download Button (Full width on mobile top row) */}
           <button
             type="button"
             onClick={handleDownloadPDF}
             disabled={isExporting}
-            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-extrabold rounded-lg shadow-sm transition-all active:scale-[0.98] ${
+            className={`col-span-2 sm:col-span-1 min-h-[42px] flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-extrabold rounded-lg shadow-sm transition-all active:scale-[0.98] whitespace-nowrap ${
               downloadSuccess
                 ? 'bg-emerald-600 text-white hover:bg-emerald-700'
                 : 'text-white bg-orange-500 hover:bg-orange-600 hover:shadow-orange-500/20'
@@ -185,28 +143,71 @@ Generada a través del sistema oficial de Transportes Ravel.`;
           >
             {downloadSuccess ? (
               <>
-                <Check className="w-4 h-4 text-white" />
+                <Check className="w-4 h-4 text-white shrink-0" />
                 <span>¡Descarga Iniciada!</span>
               </>
             ) : isExporting ? (
               <>
-                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0" />
                 <span>Generando...</span>
               </>
             ) : (
               <>
-                <Download className="w-4 h-4 text-white" />
+                <Download className="w-4 h-4 text-white shrink-0" />
                 <span>Descargar PDF</span>
               </>
             )}
           </button>
 
           <button
-            onClick={onNew}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-900 bg-emerald-100/70 hover:bg-emerald-200/80 border border-emerald-300 rounded-lg transition-colors"
+            type="button"
+            onClick={handleShareWhatsApp}
+            title="Compartir resumen por WhatsApp"
+            className="min-h-[40px] flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
           >
-            <PlusCircle className="w-4 h-4 text-orange-600" />
-            Nueva Cuenta
+            <Share2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>WhatsApp</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={printDocument}
+            className="min-h-[40px] flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+          >
+            <Printer className="w-4 h-4 text-emerald-700 shrink-0" />
+            <span>Imprimir</span>
+          </button>
+
+          {onStatusChange && cuenta.status !== 'anulada' && (
+            <button
+              type="button"
+              onClick={() => onStatusChange(cuenta.status === 'pagada' ? 'emitida' : 'pagada')}
+              className={`min-h-[40px] flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap cursor-pointer ${
+                cuenta.status === 'pagada'
+                  ? 'border-orange-300 bg-orange-50 text-orange-800 hover:bg-orange-100'
+                  : 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+              }`}
+            >
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>{cuenta.status === 'pagada' ? 'Marcar Pendiente' : 'Marcar Pagada'}</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={handleCopySummary}
+            className="min-h-[40px] flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+          >
+            <span>{copySuccess ? '¡Copiado!' : 'Copiar Resumen'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onNew}
+            className="col-span-2 sm:col-span-1 min-h-[40px] flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-900 bg-emerald-100/70 hover:bg-emerald-200/80 border border-emerald-300 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+          >
+            <PlusCircle className="w-4 h-4 text-orange-600 shrink-0" />
+            <span>Nueva Cuenta</span>
           </button>
         </div>
       </div>
@@ -239,22 +240,28 @@ Generada a través del sistema oficial de Transportes Ravel.`;
       <div className="bg-emerald-50/70 p-2 sm:p-6 rounded-2xl flex justify-center border border-emerald-100">
         <div
           id="printable-cuenta-document"
-          className="print-document-container w-full max-w-[850px] bg-white p-8 sm:p-12 shadow-lg border border-slate-300 text-slate-900 rounded-sm relative"
-          style={{ minHeight: '1050px' }}
+          className="print-document-container w-full max-w-[850px] bg-white p-4 sm:p-8 md:p-12 shadow-lg border border-slate-300 text-slate-900 rounded-sm relative"
         >
           {/* Header section with Company and Title */}
-          <div className="border-b-2 border-emerald-900 pb-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
-              <div className="flex items-center gap-4">
+          <div className="border-b-2 border-emerald-900 pb-4 sm:pb-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-5">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <RavelLogo
+                  variant="badge"
+                  size="sm"
+                  showSlogan={true}
+                  customLogoUrl={cuenta.companyLogoUrl}
+                  className="shrink-0 sm:hidden"
+                />
                 <RavelLogo
                   variant="badge"
                   size="md"
                   showSlogan={true}
                   customLogoUrl={cuenta.companyLogoUrl}
-                  className="shrink-0"
+                  className="shrink-0 hidden sm:inline-flex"
                 />
-                <div>
-                  <h1 className="text-xl font-black tracking-tight text-emerald-950 font-serif">
+                <div className="min-w-0">
+                  <h1 className="text-base sm:text-xl font-black tracking-tight text-emerald-950 font-serif">
                     {cuenta.companyName || 'TRANSPORTES RAVEL'}
                   </h1>
                   <p className="text-xs font-bold text-emerald-800 tracking-wider mt-0.5">
@@ -267,22 +274,26 @@ Generada a través del sistema oficial de Transportes Ravel.`;
               </div>
 
               {/* Consecutive & Date Box */}
-              <div className="text-right sm:border-l-2 sm:border-emerald-100 sm:pl-6">
-                <div className="inline-block bg-emerald-700 text-white px-3 py-1 text-sm font-extrabold tracking-wider rounded-xs font-mono-numbers">
-                  CUENTA DE COBRO
-                </div>
-                <div className="text-xl font-black text-emerald-950 tracking-wide mt-1 font-mono-numbers">
-                  N° {cuenta.consecutiveFormatted}
-                </div>
-                <p className="text-xs text-slate-600 mt-1 font-medium">
-                  {cuenta.city}, {formatDateColombian(cuenta.date)}
-                </p>
-                {cuenta.paymentDueDate && (
-                  <div className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-bold text-orange-950 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-xs">
-                    <span>Pactada de pago:</span>
-                    <span className="font-mono-numbers">{formatDateColombian(cuenta.paymentDueDate)}</span>
+              <div className="text-left sm:text-right border-t sm:border-t-0 sm:border-l-2 border-emerald-100 pt-3 sm:pt-0 sm:pl-6 flex sm:block items-center justify-between gap-2 flex-wrap">
+                <div>
+                  <div className="inline-block bg-emerald-700 text-white px-2.5 sm:px-3 py-1 text-xs sm:text-sm font-extrabold tracking-wider rounded-xs font-mono-numbers">
+                    CUENTA DE COBRO
                   </div>
-                )}
+                  <div className="text-lg sm:text-xl font-black text-emerald-950 tracking-wide mt-1 font-mono-numbers tabular-nums">
+                    N° {cuenta.consecutiveFormatted}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-slate-600 mt-0.5 sm:mt-1 font-medium">
+                    {cuenta.city}, {formatDateColombian(cuenta.date)}
+                  </p>
+                  {cuenta.paymentDueDate && (
+                    <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-orange-950 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-xs">
+                      <span>Pactada de pago:</span>
+                      <span className="font-mono-numbers">{formatDateColombian(cuenta.paymentDueDate)}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -359,48 +370,50 @@ Generada a través del sistema oficial de Transportes Ravel.`;
               </span>
             </div>
 
-            <table className="w-full text-left border-collapse border border-slate-300 text-xs">
-              <thead>
-                <tr className="bg-emerald-50/80 text-emerald-950 font-bold uppercase text-[11px] tracking-wide border-b border-slate-300">
-                  <th className="py-2 px-2 text-center w-10 border-r border-slate-300">#</th>
-                  <th className="py-2 px-3 w-28 border-r border-slate-300">Fecha</th>
-                  <th className="py-2 px-3 w-24 border-r border-slate-300 text-center">Placa</th>
-                  <th className="py-2 px-3 border-r border-slate-300">Cliente / Detalle del Recorrido</th>
-                  <th className="py-2 px-3 text-right w-32">Valor (COP)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {cuenta.services.map((srv, idx) => (
-                  <tr key={srv.id || idx} className="hover:bg-slate-50/50">
-                    <td className="py-2 px-2 text-center text-slate-500 font-mono-numbers border-r border-slate-300">
-                      {idx + 1}
+            <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
+              <table className="w-full text-left border-collapse border border-slate-300 text-xs min-w-[500px]">
+                <thead>
+                  <tr className="bg-emerald-50/80 text-emerald-950 font-bold uppercase text-[11px] tracking-wide border-b border-slate-300">
+                    <th className="py-2 px-2 text-center w-9 border-r border-slate-300">#</th>
+                    <th className="py-2 px-2.5 w-24 border-r border-slate-300">Fecha</th>
+                    <th className="py-2 px-2.5 w-20 border-r border-slate-300 text-center">Placa</th>
+                    <th className="py-2 px-2.5 border-r border-slate-300">Cliente / Detalle del Recorrido</th>
+                    <th className="py-2 px-2.5 text-right w-28">Valor (COP)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {cuenta.services.map((srv, idx) => (
+                    <tr key={srv.id || idx} className="hover:bg-slate-50/50">
+                      <td className="py-2 px-2 text-center text-slate-500 font-mono-numbers tabular-nums border-r border-slate-300">
+                        {idx + 1}
+                      </td>
+                      <td className="py-2 px-2.5 text-slate-700 whitespace-nowrap border-r border-slate-300 font-mono-numbers tabular-nums">
+                        {srv.date}
+                      </td>
+                      <td className="py-2 px-2.5 text-center border-r border-slate-300 font-mono-numbers font-bold text-slate-800 whitespace-nowrap">
+                        {srv.plate || cuenta.vehiclePlate}
+                      </td>
+                      <td className="py-2 px-2.5 text-slate-900 border-r border-slate-300">
+                        {srv.clientDetail || 'Servicio de transporte terrestre'}
+                      </td>
+                      <td className="py-2 px-2.5 text-right font-mono-numbers tabular-nums font-semibold text-slate-950 whitespace-nowrap">
+                        {formatCurrency(srv.value)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-emerald-50/70 font-bold border-t-2 border-emerald-300">
+                    <td colSpan={4} className="py-2.5 px-3 text-right uppercase text-emerald-950 tracking-wider border-r border-slate-300 text-xs">
+                      TOTAL A PAGAR:
                     </td>
-                    <td className="py-2 px-3 text-slate-700 whitespace-nowrap border-r border-slate-300 font-mono-numbers">
-                      {srv.date}
-                    </td>
-                    <td className="py-2 px-3 text-center border-r border-slate-300 font-mono-numbers font-bold text-slate-800">
-                      {srv.plate || cuenta.vehiclePlate}
-                    </td>
-                    <td className="py-2 px-3 text-slate-900 border-r border-slate-300">
-                      {srv.clientDetail || 'Servicio de transporte terrestre'}
-                    </td>
-                    <td className="py-2 px-3 text-right font-mono-numbers font-semibold text-slate-950 whitespace-nowrap">
-                      {formatCurrency(srv.value)}
+                    <td className="py-2.5 px-2.5 text-right text-sm font-black font-mono-numbers tabular-nums text-emerald-950 bg-emerald-100/60 whitespace-nowrap">
+                      {formatCurrency(cuenta.totalAmount)}
                     </td>
                   </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="bg-emerald-50/70 font-bold border-t-2 border-emerald-300">
-                  <td colSpan={4} className="py-2.5 px-4 text-right uppercase text-emerald-950 tracking-wider border-r border-slate-300 text-xs">
-                    TOTAL A PAGAR:
-                  </td>
-                  <td className="py-2.5 px-3 text-right text-sm font-black font-mono-numbers text-emerald-950 bg-emerald-100/60">
-                    {formatCurrency(cuenta.totalAmount)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+                </tfoot>
+              </table>
+            </div>
           </div>
 
           {/* Payment Details Section */}

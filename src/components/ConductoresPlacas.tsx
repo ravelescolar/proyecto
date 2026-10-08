@@ -131,24 +131,25 @@ export const ConductoresPlacas: React.FC<ConductoresPlacasProps> = ({
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 pb-12">
       {/* Search and Action Bar */}
-      <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-emerald-600 absolute left-3 top-3" />
+          <Search className="w-4 h-4 text-emerald-600 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             placeholder="Buscar por placa, conductor o cédula..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-xs rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-500"
+            className="w-full pl-9 pr-4 py-2.5 text-xs rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-500"
           />
         </div>
 
         <button
+          type="button"
           onClick={handleOpenCreate}
-          className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-orange-500 hover:bg-orange-600 rounded-lg shadow-xs transition-colors self-end sm:self-auto"
+          className="min-h-[42px] w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-orange-500 hover:bg-orange-600 rounded-lg shadow-xs transition-colors whitespace-nowrap cursor-pointer"
         >
-          <Plus className="w-4 h-4 text-white" />
-          Registrar Nuevo Vehículo / Conductor
+          <Plus className="w-4 h-4 text-white shrink-0" />
+          <span>Registrar Nuevo Vehículo / Conductor</span>
         </button>
       </div>
 
@@ -358,29 +359,31 @@ export const ConductoresPlacas: React.FC<ConductoresPlacasProps> = ({
               {/* Header: Plate & Actions */}
               <div className="flex items-center justify-between pb-3 border-b border-emerald-50">
                 <div className="flex items-center gap-2">
-                  <span className="font-mono-numbers font-black text-sm px-2.5 py-1 bg-orange-50 text-orange-950 border border-orange-200 rounded-md">
+                  <span className="font-mono-numbers font-black text-sm text-orange-950">
                     {item.plate}
                   </span>
-                  <span className="text-[10px] text-slate-400 font-medium">
+                  <span className="text-slate-300" aria-hidden="true">·</span>
+                  <span className="text-[11px] text-slate-500 font-medium tabular-nums">
                     {item.totalAccountsGenerated || 1} cuentas emitidas
                   </span>
                 </div>
 
                 <div className="flex items-center gap-1">
                   <button
+                    type="button"
                     onClick={() => handleOpenEdit(item)}
                     title="Editar perfil"
-                    className="p-1 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded"
+                    className="min-h-[36px] min-w-[36px] flex items-center justify-center text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg cursor-pointer"
                   >
-                    <Edit2 className="w-3.5 h-3.5" />
+                    <Edit2 className="w-4 h-4" />
                   </button>
                   <button
                     type="button"
                     onClick={() => handleDelete(item.id, item.plate, item.driverName)}
                     title="Eliminar de base de datos"
-                    className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                    className="min-h-[36px] min-w-[36px] flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -414,24 +417,17 @@ export const ConductoresPlacas: React.FC<ConductoresPlacasProps> = ({
                 </div>
               </div>
 
-              {/* Frequent Clients Chips */}
+              {/* Frequent Clients */}
               {item.frequentClients && item.frequentClients.length > 0 && (
                 <div className="mt-3">
                   <span className="text-[10px] font-bold uppercase text-slate-400 block mb-1">
                     Rutas / Clientes Habituales:
                   </span>
-                  <div className="flex flex-wrap gap-1">
-                    {item.frequentClients.slice(0, 3).map((cl, i) => (
-                      <span
-                        key={i}
-                        className="text-[10px] px-1.5 py-0.5 bg-emerald-50 text-emerald-800 rounded border border-emerald-100 truncate max-w-[200px]"
-                      >
-                        {cl}
-                      </span>
-                    ))}
+                  <div className="text-xs text-emerald-900 font-medium leading-relaxed">
+                    {item.frequentClients.slice(0, 3).join(' · ')}
                     {item.frequentClients.length > 3 && (
-                      <span className="text-[10px] text-slate-400">
-                        +{item.frequentClients.length - 3} más
+                      <span className="text-[11px] text-slate-400">
+                        {' '}· +{item.frequentClients.length - 3} más
                       </span>
                     )}
                   </div>
@@ -442,11 +438,12 @@ export const ConductoresPlacas: React.FC<ConductoresPlacasProps> = ({
             {/* Quick action button */}
             <div className="mt-4 pt-3 border-t border-emerald-50">
               <button
+                type="button"
                 onClick={() => onSelectForCuenta(item)}
-                className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-bold text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
+                className="min-h-[42px] w-full flex items-center justify-center gap-1.5 py-2 text-xs font-bold text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer"
               >
-                <FileText className="w-3.5 h-3.5 text-orange-500" />
-                Crear Cuenta de Cobro para {item.plate}
+                <FileText className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                <span>Crear Cuenta de Cobro para {item.plate}</span>
               </button>
             </div>
           </div>

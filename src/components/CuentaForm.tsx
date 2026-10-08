@@ -393,8 +393,8 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
   return (
     <div className="w-full max-w-5xl mx-auto space-y-6 pb-12">
       {/* Top Banner - Light Green & Crisp White with Orange Accents and Official Logo */}
-      <div className="bg-gradient-to-r from-emerald-50 via-white to-emerald-50/60 p-5 rounded-2xl shadow-xs border border-emerald-200/90 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
+      <div className="bg-gradient-to-r from-emerald-50 via-white to-emerald-50/60 p-4 sm:p-5 rounded-2xl shadow-xs border border-emerald-200/90 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-3 min-w-0">
           <RavelLogo
             variant="badge"
             size="sm"
@@ -402,13 +402,13 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
             customLogoUrl={settings.companyLogoUrl}
             className="shrink-0"
           />
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-extrabold tracking-tight text-emerald-950 font-serif">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <h2 className="text-base sm:text-lg font-extrabold tracking-tight text-emerald-950 font-serif truncate">
                 {settings.companyName}
               </h2>
-              <span className="text-xs bg-orange-50 text-orange-800 border border-orange-200 px-2 py-0.5 rounded font-mono font-bold">
-                NIT: {settings.companyNit}
+              <span className="text-xs text-orange-800 font-mono font-bold">
+                · NIT {settings.companyNit}
               </span>
             </div>
             <p className="text-xs text-emerald-900/70 mt-0.5">
@@ -417,20 +417,20 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 self-start md:self-auto">
+        <div className="flex items-center gap-2 w-full md:w-auto">
           <button
             type="button"
             onClick={loadLatestCuenta}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-900 bg-emerald-100/70 hover:bg-emerald-200/80 border border-emerald-300 rounded-lg transition-colors"
+            className="flex-1 md:flex-initial min-h-[40px] flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-900 bg-emerald-100/70 hover:bg-emerald-200/80 border border-emerald-300 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
             title="Carga datos de la última cuenta creada"
           >
-            <RotateCcw className="w-3.5 h-3.5 text-orange-600" />
-            Cargar Última Cuenta
+            <RotateCcw className="w-3.5 h-3.5 text-orange-600 shrink-0" />
+            <span>Cargar Última Cuenta</span>
           </button>
           <button
             type="button"
             onClick={handleReset}
-            className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
+            className="min-h-[40px] px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
           >
             Limpiar
           </button>
@@ -539,15 +539,15 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
             </div>
 
             {/* Total Preview Badge */}
-            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/60 border border-emerald-200 rounded-xl p-3 flex flex-col justify-between">
-              <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider flex items-center justify-between">
+            <div className="sm:col-span-2 lg:col-span-1 bg-gradient-to-br from-emerald-50 to-emerald-100/60 border border-emerald-200 rounded-xl p-3 flex sm:flex-col items-center sm:items-stretch justify-between">
+              <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider flex items-center justify-between gap-1.5">
                 <span>Total</span>
-                <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+                <span className="w-2 h-2 rounded-full bg-orange-500 hidden sm:inline-block"></span>
               </span>
-              <div className="text-base font-black text-emerald-950 font-mono-numbers">
+              <div className="text-base font-black text-emerald-950 font-mono-numbers tabular-nums">
                 {formatCurrency(totalAmount)}
               </div>
-              <span className="text-[10px] text-emerald-700 truncate font-medium">
+              <span className="text-[10px] text-emerald-700 truncate font-medium hidden sm:block">
                 {services.length} {services.length === 1 ? 'servicio' : 'servicios'}
               </span>
             </div>
@@ -555,17 +555,17 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
         </div>
 
         {/* Section 2: Conductor & Placa (With Autocomplete) */}
-        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-emerald-100 shadow-xs relative">
-          <div className="flex items-center justify-between pb-3 mb-4 border-b border-emerald-50">
+        <div className="bg-white p-4 sm:p-6 rounded-2xl border border-emerald-100 shadow-xs relative">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-3 mb-4 border-b border-emerald-50">
             <div className="flex items-center gap-2">
-              <Car className="w-4 h-4 text-emerald-600" />
+              <Car className="w-4 h-4 text-emerald-600 shrink-0" />
               <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-900">
                 2. Vehículo y Conductor (Acreedor)
               </h3>
             </div>
-            <span className="text-xs text-orange-800 font-semibold bg-orange-50 px-2 py-0.5 rounded border border-orange-200 flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-orange-500" />
-              Autocompletado activo por placa
+            <span className="text-[11px] text-orange-800 font-medium flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-orange-500 shrink-0" />
+              <span>Autocompletado activo por placa</span>
             </span>
           </div>
 
@@ -748,9 +748,125 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
             </div>
           )}
 
-          {/* Responsive Services Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[700px]">
+          {/* Mobile & Small Tablet Cards View (< md) */}
+          <div className="md:hidden space-y-3">
+            {services.map((row, index) => (
+              <div
+                key={row.id}
+                className="p-3.5 rounded-xl border border-emerald-100 bg-emerald-50/20 space-y-3"
+              >
+                <div className="flex items-center justify-between border-b border-emerald-100/80 pb-2">
+                  <span className="text-xs font-bold text-emerald-950 font-mono-numbers">
+                    Servicio #{index + 1}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => duplicateServiceRow(row)}
+                      title="Duplicar servicio"
+                      className="min-h-[36px] px-2.5 py-1 text-xs font-medium text-emerald-800 hover:bg-emerald-100/70 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Duplicar</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeServiceRow(row.id)}
+                      title="Eliminar servicio"
+                      className="min-h-[36px] px-2 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                      Fecha Servicio:
+                    </label>
+                    <input
+                      type="date"
+                      value={row.date}
+                      onChange={(e) => updateServiceRow(row.id, 'date', e.target.value)}
+                      className="w-full px-2.5 py-2 text-xs rounded-lg border border-slate-200 bg-white focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                      Placa:
+                    </label>
+                    <input
+                      type="text"
+                      placeholder={vehiclePlate || 'ABC-123'}
+                      value={row.plate}
+                      onChange={(e) =>
+                        updateServiceRow(row.id, 'plate', formatPlate(e.target.value))
+                      }
+                      className="w-full px-2.5 py-2 text-xs text-center font-bold font-mono-numbers uppercase rounded-lg border border-slate-200 bg-white focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    Cliente / Recorrido / Detalle:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: Colegio San José - Ruta Escolar"
+                    value={row.clientDetail}
+                    onChange={(e) => updateServiceRow(row.id, 'clientDetail', e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    Valor del Servicio ($ COP):
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-xs text-slate-400 font-mono-numbers">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1000"
+                      placeholder="0"
+                      value={row.value === 0 ? '' : row.value}
+                      onChange={(e) =>
+                        updateServiceRow(row.id, 'value', parseFloat(e.target.value) || 0)
+                      }
+                      className="w-full pl-7 pr-3 py-2 text-sm text-right font-mono-numbers tabular-nums font-bold rounded-lg border border-slate-200 bg-white focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            <button
+              type="button"
+              onClick={addServiceRow}
+              className="w-full min-h-[44px] flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-dashed border-emerald-300 rounded-xl transition-colors cursor-pointer"
+            >
+              <Plus className="w-4 h-4 text-orange-600" />
+              <span>Agregar Otro Servicio</span>
+            </button>
+
+            <div className="p-3.5 rounded-xl bg-emerald-50/90 border border-emerald-200 flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-950">
+                Total Cuenta:
+              </span>
+              <span className="text-base font-black font-mono-numbers tabular-nums text-emerald-950">
+                {formatCurrency(totalAmount)}
+              </span>
+            </div>
+          </div>
+
+          {/* Desktop Services Table (>= md) */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[680px]">
               <thead>
                 <tr className="bg-emerald-50/60 border-b border-emerald-100 text-[11px] font-bold text-emerald-900 uppercase tracking-wider">
                   <th className="py-2.5 px-2 w-10 text-center">#</th>
@@ -764,7 +880,7 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
               <tbody className="divide-y divide-emerald-50/60 text-sm">
                 {services.map((row, index) => (
                   <tr key={row.id} className="group hover:bg-emerald-50/30 transition-colors">
-                    <td className="py-2 px-2 text-center text-xs font-mono-numbers text-slate-400">
+                    <td className="py-2 px-2 text-center text-xs font-mono-numbers tabular-nums text-slate-400">
                       {index + 1}
                     </td>
 
@@ -817,7 +933,7 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
                           onChange={(e) =>
                             updateServiceRow(row.id, 'value', parseFloat(e.target.value) || 0)
                           }
-                          className="w-full pl-6 pr-2 py-1.5 text-xs text-right font-mono-numbers font-semibold rounded-md border border-slate-200 bg-white focus:ring-1 focus:ring-emerald-500"
+                          className="w-full pl-6 pr-2 py-1.5 text-xs text-right font-mono-numbers tabular-nums font-semibold rounded-md border border-slate-200 bg-white focus:ring-1 focus:ring-emerald-500"
                         />
                       </div>
                     </td>
@@ -851,7 +967,7 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
                   <td colSpan={4} className="py-3 px-4 text-right text-xs uppercase tracking-wider text-emerald-950">
                     TOTAL CUENTA DE COBRO:
                   </td>
-                  <td className="py-3 px-2 text-right text-base font-black font-mono-numbers text-emerald-950">
+                  <td className="py-3 px-2 text-right text-base font-black font-mono-numbers tabular-nums text-emerald-950">
                     {formatCurrency(totalAmount)}
                   </td>
                   <td></td>
@@ -861,11 +977,11 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
           </div>
 
           {/* Amount in Words Display */}
-          <div className="mt-3 p-3 bg-emerald-50/40 border border-emerald-200/80 rounded-xl flex items-center justify-between text-xs">
-            <span className="font-bold text-emerald-800 uppercase text-[10px] tracking-wider">
+          <div className="mt-3 p-3 bg-emerald-50/40 border border-emerald-200/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+            <span className="font-bold text-emerald-800 uppercase text-[10px] tracking-wider shrink-0">
               Total en Letras:
             </span>
-            <span className="font-bold text-emerald-950 text-right">{amountWords}</span>
+            <span className="font-bold text-emerald-950 sm:text-right">{amountWords}</span>
           </div>
 
           {/* Concept text input */}
@@ -1015,27 +1131,27 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
         </div>
 
         {/* Form Actions Footer */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-emerald-100 shadow-xs">
-          <div className="text-xs text-slate-500">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-emerald-100 shadow-xs">
+          <div className="text-xs text-slate-500 text-center sm:text-left">
             Al hacer clic en generar, la cuenta de cobro y los datos del conductor se guardarán en Firebase Cloud Firestore.
           </div>
 
-          <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full sm:w-auto justify-end shrink-0">
             <button
               type="button"
               onClick={handleReset}
-              className="px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+              className="min-h-[44px] px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
             >
               Cancelar / Limpiar
             </button>
 
-            {/* Main Action Button - Orange with white text and sparkles */}
+            {/* Main Action Button - Orange with white text */}
             <button
               type="submit"
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 text-sm font-extrabold text-white bg-orange-500 hover:bg-orange-600 rounded-xl shadow-md hover:shadow-orange-500/25 transition-all active:scale-[0.98]"
+              className="min-h-[44px] w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 text-sm font-extrabold text-white bg-orange-500 hover:bg-orange-600 rounded-xl shadow-md hover:shadow-orange-500/25 transition-all active:scale-[0.98] cursor-pointer whitespace-nowrap"
             >
-              <FileText className="w-4 h-4" />
-              Generar Cuenta de Cobro
+              <FileText className="w-4 h-4 shrink-0" />
+              <span>Generar Cuenta de Cobro</span>
             </button>
           </div>
         </div>

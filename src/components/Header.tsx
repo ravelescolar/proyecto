@@ -5,7 +5,8 @@ import {
   Settings,
   Plus,
   LogOut,
-  Cloud
+  Cloud,
+  FileText
 } from 'lucide-react';
 import { AppSettings } from '../types';
 import { RavelLogo } from './RavelLogo';
@@ -20,6 +21,7 @@ interface HeaderProps {
   userEmail?: string | null;
   isSyncing?: boolean;
   onSignOut?: () => void;
+  hasActivePreview?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -32,133 +34,231 @@ export const Header: React.FC<HeaderProps> = ({
   userEmail,
   isSyncing,
   onSignOut,
+  hasActivePreview = false,
 }) => {
   return (
-    <header className="no-print bg-white/95 backdrop-blur-md border-b border-emerald-100 sticky top-0 z-30 shadow-xs">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Brand Logo & Name */}
-          <div
-            onClick={() => onSelectTab('form')}
-            className="flex items-center gap-3 cursor-pointer group"
-          >
-            <RavelLogo
-              variant="badge"
-              size="sm"
-              showSlogan={false}
-              customLogoUrl={settings.companyLogoUrl}
-              className="transition-transform group-hover:scale-105"
-            />
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-base font-extrabold tracking-tight text-emerald-950 font-serif">
-                  {settings.companyName || 'TRANSPORTES RAVEL'}
-                </span>
-                <span className="text-[10px] font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded">
-                  NIT: {settings.companyNit || '900.388.163-2'}
-                </span>
-                <span
-                  className={`hidden md:inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded border ${
-                    isSyncing
-                      ? 'bg-orange-50 text-orange-800 border-orange-200'
-                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  }`}
-                  title={userEmail ? `Sincronizado en Firebase (${userEmail})` : 'Sincronizado en Firebase'}
-                >
-                  <Cloud className={`w-3 h-3 ${isSyncing ? 'text-orange-500 animate-pulse' : 'text-emerald-600'}`} />
-                  <span>
-                    {isSyncing
-                      ? 'Guardando en la nube...'
-                      : userEmail
-                      ? `Nube: ${userEmail}`
-                      : 'Sincronizado en Firebase'}
+    <>
+      <header className="no-print bg-white/95 backdrop-blur-md border-b border-emerald-100 sticky top-0 z-30 shadow-xs">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-14 sm:h-16 gap-2">
+            {/* Brand Logo & Name */}
+            <div
+              onClick={() => onSelectTab('form')}
+              className="flex items-center gap-2.5 sm:gap-3 cursor-pointer group min-w-0"
+            >
+              <RavelLogo
+                variant="badge"
+                size="sm"
+                showSlogan={false}
+                customLogoUrl={settings.companyLogoUrl}
+                className="transition-transform group-hover:scale-105 shrink-0"
+              />
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm sm:text-base font-extrabold tracking-tight text-emerald-950 font-serif truncate">
+                    {settings.companyName || 'TRANSPORTES RAVEL'}
                   </span>
-                </span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium truncate">
+                  <span className="font-mono font-semibold text-emerald-800">
+                    NIT {settings.companyNit || '900.388.163-2'}
+                  </span>
+                  <span className="hidden sm:inline" aria-hidden="true">·</span>
+                  <span className="hidden sm:inline truncate">
+                    Transporte Terrestre y Escolar
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span
+                    className={`inline-flex items-center gap-1 font-semibold truncate ${
+                      isSyncing ? 'text-orange-700' : 'text-emerald-700'
+                    }`}
+                    title={userEmail ? `Sincronizado en Firebase (${userEmail})` : 'Sincronizado en Firebase'}
+                  >
+                    <Cloud className={`w-3 h-3 shrink-0 ${isSyncing ? 'text-orange-500 animate-pulse' : 'text-emerald-600'}`} />
+                    <span className="truncate max-w-[110px] sm:max-w-[180px]">
+                      {isSyncing
+                        ? 'Guardando...'
+                        : userEmail
+                        ? userEmail
+                        : 'En línea'}
+                    </span>
+                  </span>
+                </div>
               </div>
-              <p className="text-[11px] text-slate-500 font-medium">
-                donde quieras llegar · Transporte Terrestre y Escolar
-              </p>
+            </div>
+
+            {/* Desktop Navigation Links (Center Zone) */}
+            <nav className="hidden md:flex items-center gap-1 lg:gap-2">
+              <button
+                type="button"
+                onClick={() => onSelectTab('form')}
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  currentTab === 'form'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-700 hover:text-emerald-900 hover:bg-emerald-50'
+                }`}
+              >
+                <Plus className={`w-4 h-4 ${currentTab === 'form' ? 'text-orange-300' : 'text-orange-500'}`} />
+                <span>Nueva Cuenta</span>
+              </button>
+
+              {hasActivePreview && (
+                <button
+                  type="button"
+                  onClick={() => onSelectTab('preview')}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                    currentTab === 'preview'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-700 hover:text-emerald-900 hover:bg-emerald-50'
+                  }`}
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>Vista Previa</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => onSelectTab('history')}
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  currentTab === 'history'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-700 hover:text-emerald-900 hover:bg-emerald-50'
+                }`}
+              >
+                <Clock className="w-4 h-4" />
+                <span>Historial</span>
+                <span className="opacity-80 font-mono tabular-nums">({cuentasCount})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onSelectTab('drivers')}
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  currentTab === 'drivers'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-700 hover:text-emerald-900 hover:bg-emerald-50'
+                }`}
+              >
+                <Car className="w-4 h-4" />
+                <span>Vehículos y Placas</span>
+                <span className="opacity-80 font-mono tabular-nums">({driversCount})</span>
+              </button>
+            </nav>
+
+            {/* Right Zone: Settings & Sign Out (Always reachable on Mobile & Desktop) */}
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                title="Configuración general"
+                className="min-h-[40px] min-w-[40px] flex items-center justify-center text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+
+              {onSignOut && (
+                <button
+                  type="button"
+                  onClick={onSignOut}
+                  title={userEmail ? `Cerrar sesión (${userEmail})` : 'Cerrar sesión'}
+                  className="min-h-[40px] min-w-[40px] flex items-center justify-center text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </div>
+        </div>
+      </header>
 
-          {/* Navigation Controls */}
-          <nav className="flex items-center gap-1 sm:gap-2">
-            <button
-              onClick={() => onSelectTab('form')}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg transition-all ${
-                currentTab === 'form'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-slate-700 hover:text-emerald-900 hover:bg-emerald-50'
+      {/* Mobile Fixed Bottom Navigation Bar */}
+      <nav
+        aria-label="Navegación móvil"
+        className="no-print md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-emerald-100 shadow-lg"
+      >
+        <div className={`grid ${hasActivePreview ? 'grid-cols-4' : 'grid-cols-3'} items-center h-16 px-1`}>
+          <button
+            type="button"
+            onClick={() => onSelectTab('form')}
+            className={`flex flex-col items-center justify-center min-h-[48px] py-1 rounded-xl transition-colors cursor-pointer ${
+              currentTab === 'form'
+                ? 'text-emerald-700 font-bold'
+                : 'text-slate-500 hover:text-emerald-800 font-medium'
+            }`}
+          >
+            <div
+              className={`flex items-center justify-center w-8 h-6 rounded-full transition-colors ${
+                currentTab === 'form' ? 'bg-emerald-100 text-emerald-800' : ''
               }`}
             >
-              <Plus className={`w-4 h-4 ${currentTab === 'form' ? 'text-orange-300' : 'text-orange-500'}`} />
-              <span>Nueva Cuenta</span>
-            </button>
+              <Plus className="w-4 h-4" />
+            </div>
+            <span className="text-[11px] tracking-tight mt-0.5 whitespace-nowrap">Nueva Cuenta</span>
+          </button>
 
+          {hasActivePreview && (
             <button
-              onClick={() => onSelectTab('history')}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all ${
-                currentTab === 'history'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-slate-700 hover:text-emerald-900 hover:bg-emerald-50'
+              type="button"
+              onClick={() => onSelectTab('preview')}
+              className={`flex flex-col items-center justify-center min-h-[48px] py-1 rounded-xl transition-colors cursor-pointer ${
+                currentTab === 'preview'
+                  ? 'text-emerald-700 font-bold'
+                  : 'text-slate-500 hover:text-emerald-800 font-medium'
+              }`}
+            >
+              <div
+                className={`flex items-center justify-center w-8 h-6 rounded-full transition-colors ${
+                  currentTab === 'preview' ? 'bg-emerald-100 text-emerald-800' : ''
+                }`}
+              >
+                <FileText className="w-4 h-4" />
+              </div>
+              <span className="text-[11px] tracking-tight mt-0.5 whitespace-nowrap">Documento</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => onSelectTab('history')}
+            className={`flex flex-col items-center justify-center min-h-[48px] py-1 rounded-xl transition-colors cursor-pointer ${
+              currentTab === 'history'
+                ? 'text-emerald-700 font-bold'
+                : 'text-slate-500 hover:text-emerald-800 font-medium'
+            }`}
+          >
+            <div
+              className={`flex items-center justify-center px-2.5 h-6 rounded-full gap-1 transition-colors ${
+                currentTab === 'history' ? 'bg-emerald-100 text-emerald-800' : ''
               }`}
             >
               <Clock className="w-4 h-4" />
-              <span>Historial</span>
-              <span
-                className={`ml-1 text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                  currentTab === 'history'
-                    ? 'bg-emerald-800 text-orange-200 font-bold'
-                    : 'bg-emerald-100 text-emerald-800 font-semibold'
-                }`}
-              >
-                {cuentasCount}
-              </span>
-            </button>
+              <span className="text-[10px] font-mono tabular-nums font-bold">{cuentasCount}</span>
+            </div>
+            <span className="text-[11px] tracking-tight mt-0.5 whitespace-nowrap">Historial</span>
+          </button>
 
-            <button
-              onClick={() => onSelectTab('drivers')}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all ${
-                currentTab === 'drivers'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-slate-700 hover:text-emerald-900 hover:bg-emerald-50'
+          <button
+            type="button"
+            onClick={() => onSelectTab('drivers')}
+            className={`flex flex-col items-center justify-center min-h-[48px] py-1 rounded-xl transition-colors cursor-pointer ${
+              currentTab === 'drivers'
+                ? 'text-emerald-700 font-bold'
+                : 'text-slate-500 hover:text-emerald-800 font-medium'
+            }`}
+          >
+            <div
+              className={`flex items-center justify-center px-2.5 h-6 rounded-full gap-1 transition-colors ${
+                currentTab === 'drivers' ? 'bg-emerald-100 text-emerald-800' : ''
               }`}
             >
               <Car className="w-4 h-4" />
-              <span>Vehículos & Placas</span>
-              <span
-                className={`ml-1 text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                  currentTab === 'drivers'
-                    ? 'bg-emerald-800 text-orange-200 font-bold'
-                    : 'bg-emerald-100 text-emerald-800 font-semibold'
-                }`}
-              >
-                {driversCount}
-              </span>
-            </button>
-
-            <div className="h-6 w-px bg-emerald-100 mx-1 hidden sm:block"></div>
-
-            <button
-              onClick={onOpenSettings}
-              title="Configuración general"
-              className="p-2 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-
-            {onSignOut && (
-              <button
-                onClick={onSignOut}
-                title={userEmail ? `Cerrar sesión (${userEmail})` : 'Cerrar sesión'}
-                className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            )}
-          </nav>
+              <span className="text-[10px] font-mono tabular-nums font-bold">{driversCount}</span>
+            </div>
+            <span className="text-[11px] tracking-tight mt-0.5 whitespace-nowrap">Vehículos</span>
+          </button>
         </div>
-      </div>
-    </header>
+      </nav>
+    </>
   );
 };

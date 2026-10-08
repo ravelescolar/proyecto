@@ -80,18 +80,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-emerald-950/40 p-4 backdrop-blur-xs no-print">
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl border border-emerald-200">
-        <div className="flex items-center justify-between pb-4 border-b border-emerald-50">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-emerald-950/40 p-0 sm:p-4 backdrop-blur-xs no-print">
+      <div className="w-full max-w-2xl max-h-[92vh] sm:max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-2xl bg-white p-4 sm:p-6 shadow-2xl border border-emerald-200">
+        <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-emerald-50">
           <div className="flex items-center gap-2">
             <div className="p-2 bg-emerald-100 rounded-lg text-emerald-800">
               <Settings className="w-5 h-5 text-emerald-700" />
             </div>
-            <h3 className="text-lg font-bold text-emerald-950">Configuración del Sistema</h3>
+            <h3 className="text-base sm:text-lg font-bold text-emerald-950">Configuración del Sistema</h3>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
+            className="min-h-[40px] min-w-[40px] flex items-center justify-center text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>

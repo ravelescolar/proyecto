@@ -202,41 +202,41 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
           </div>
 
           {/* Quick Target Filter Buttons (Todos, Conductor, Placa) */}
-          <div className="flex items-center gap-1 p-1 bg-slate-100/80 rounded-xl border border-slate-200/80 shrink-0">
+          <div className="grid grid-cols-3 sm:flex items-center gap-1 p-1 bg-slate-100/80 rounded-xl border border-slate-200/80 shrink-0">
             <button
               type="button"
               onClick={() => setSearchTarget('all')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+              className={`min-h-[38px] flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
                 searchTarget === 'all'
                   ? 'bg-white text-emerald-950 shadow-xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Filter className="w-3.5 h-3.5 text-emerald-600" />
+              <Filter className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
               <span>Todos</span>
             </button>
             <button
               type="button"
               onClick={() => setSearchTarget('driver')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+              className={`min-h-[38px] flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
                 searchTarget === 'driver'
                   ? 'bg-white text-emerald-950 shadow-xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <User className="w-3.5 h-3.5 text-emerald-600" />
+              <User className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
               <span>Conductor</span>
             </button>
             <button
               type="button"
               onClick={() => setSearchTarget('plate')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+              className={`min-h-[38px] flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
                 searchTarget === 'plate'
                   ? 'bg-white text-emerald-950 shadow-xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Car className="w-3.5 h-3.5 text-emerald-600" />
+              <Car className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
               <span>Placa</span>
             </button>
           </div>
@@ -245,11 +245,11 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
         {/* Secondary Bar: Status Filters, Export CSV, and New CTA */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t border-slate-100">
           {/* Status filter tabs */}
-          <div className="flex items-center gap-1 p-1 bg-emerald-50/70 border border-emerald-100 rounded-lg">
+          <div className="grid grid-cols-3 sm:flex items-center gap-1 p-1 bg-emerald-50/70 border border-emerald-100 rounded-lg">
             <button
               type="button"
               onClick={() => setStatusFilter('all')}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+              className={`min-h-[36px] px-2.5 sm:px-3 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap ${
                 statusFilter === 'all'
                   ? 'bg-white text-emerald-950 shadow-xs font-bold'
                   : 'text-emerald-800 hover:text-emerald-950'
@@ -260,7 +260,7 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
             <button
               type="button"
               onClick={() => setStatusFilter('emitida')}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+              className={`min-h-[36px] px-2.5 sm:px-3 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap ${
                 statusFilter === 'emitida'
                   ? 'bg-white text-orange-900 shadow-xs font-bold'
                   : 'text-slate-600 hover:text-orange-800'
@@ -271,7 +271,7 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
             <button
               type="button"
               onClick={() => setStatusFilter('pagada')}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+              className={`min-h-[36px] px-2.5 sm:px-3 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap ${
                 statusFilter === 'pagada'
                   ? 'bg-white text-emerald-900 shadow-xs font-bold'
                   : 'text-slate-600 hover:text-emerald-900'
@@ -286,18 +286,18 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
               type="button"
               onClick={exportToCSV}
               title="Exportar cuentas visibles a CSV"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-900 bg-white border border-emerald-200 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+              className="flex-1 sm:flex-initial min-h-[38px] flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-900 bg-white border border-emerald-200 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
               <span>CSV ({filtered.length})</span>
             </button>
 
             <button
               type="button"
               onClick={onNew}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-orange-500 hover:bg-orange-600 rounded-lg shadow-xs transition-colors cursor-pointer"
+              className="flex-1 sm:flex-initial min-h-[38px] flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-orange-500 hover:bg-orange-600 rounded-lg shadow-xs transition-colors cursor-pointer whitespace-nowrap"
             >
-              <Plus className="w-3.5 h-3.5 text-white" />
+              <Plus className="w-3.5 h-3.5 text-white shrink-0" />
               <span>Nueva Cuenta</span>
             </button>
           </div>
@@ -387,132 +387,230 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-emerald-50/70 border-b border-emerald-100 text-[11px] font-bold text-emerald-950 uppercase tracking-wider">
-                  <th className="py-3 px-3 w-28">Consecutivo</th>
-                  <th className="py-3 px-3 w-28">Fecha</th>
-                  <th className="py-3 px-3 w-24">Placa</th>
-                  <th className="py-3 px-4">Conductor y Cédula</th>
-                  <th className="py-3 px-3">Servicios</th>
-                  <th className="py-3 px-3 text-right">Total (COP)</th>
-                  <th className="py-3 px-3 text-center w-28">Estado</th>
-                  <th className="py-3 px-3 text-center w-36">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-emerald-50/60">
-                {filtered.map((cuenta) => (
-                  <tr key={cuenta.id} className="hover:bg-emerald-50/30 transition-colors">
-                    {/* Consecutivo */}
-                    <td className="py-3 px-3 font-mono-numbers font-bold text-emerald-950 whitespace-nowrap">
-                      {cuenta.consecutiveFormatted}
-                    </td>
-
-                    {/* Fecha */}
-                    <td className="py-3 px-3 whitespace-nowrap">
-                      <div className="text-slate-700 font-mono-numbers">{cuenta.date}</div>
-                      {cuenta.paymentDueDate && (
-                        <div className="text-[10px] text-orange-800 font-medium font-mono-numbers">
-                          Pago: {cuenta.paymentDueDate}
-                        </div>
-                      )}
-                    </td>
-
-                    {/* Placa */}
-                    <td className="py-3 px-3 whitespace-nowrap">
-                      <span className="font-mono-numbers font-bold bg-orange-50 text-orange-950 px-2 py-0.5 rounded border border-orange-200">
-                        {cuenta.vehiclePlate}
-                      </span>
-                    </td>
-
-                    {/* Conductor */}
-                    <td className="py-3 px-4">
-                      <div className="font-bold text-slate-900 truncate max-w-[220px]">
+          <>
+            {/* Mobile & Small Tablet Cards List (< md) */}
+            <div className="md:hidden divide-y divide-emerald-100">
+              {filtered.map((cuenta) => (
+                <div key={cuenta.id} className="p-4 space-y-3 hover:bg-emerald-50/20 transition-colors">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono-numbers font-black text-sm text-emerald-950">
+                          {cuenta.consecutiveFormatted}
+                        </span>
+                        <span className="text-slate-300" aria-hidden="true">·</span>
+                        <span className="font-mono-numbers font-bold text-xs text-orange-900">
+                          Placa {cuenta.vehiclePlate}
+                        </span>
+                      </div>
+                      <div className="font-bold text-slate-900 text-xs mt-1 uppercase">
                         {cuenta.driverName}
                       </div>
                       <div className="text-[11px] text-slate-500 font-mono-numbers">
-                        CC: {cuenta.driverId}
+                        CC {cuenta.driverId} · Emisión: {cuenta.date}
+                        {cuenta.paymentDueDate ? ` · Pago: ${cuenta.paymentDueDate}` : ''}
                       </div>
-                    </td>
+                    </div>
 
-                    {/* Servicios count and preview */}
-                    <td className="py-3 px-3">
-                      <div className="text-slate-800 font-medium">
-                        {cuenta.services.length} {cuenta.services.length === 1 ? 'servicio' : 'servicios'}
-                      </div>
-                      <div className="text-[11px] text-slate-400 truncate max-w-[180px]">
-                        {cuenta.services[0]?.clientDetail || 'Transporte terrestre'}
-                      </div>
-                    </td>
+                    <select
+                      value={cuenta.status}
+                      disabled={cuenta.status === 'anulada'}
+                      onChange={(e) => onStatusChange(cuenta.id, e.target.value as CuentaStatus)}
+                      className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg border text-center transition-colors shrink-0 ${
+                        cuenta.status === 'pagada'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300 cursor-pointer'
+                          : cuenta.status === 'anulada'
+                          ? 'bg-rose-50 text-rose-800 border-rose-300 cursor-not-allowed opacity-80'
+                          : 'bg-orange-50 text-orange-800 border-orange-300 cursor-pointer'
+                      }`}
+                    >
+                      <option value="emitida">Emitida</option>
+                      <option value="pagada">Pagada</option>
+                      <option value="anulada">Anulada</option>
+                    </select>
+                  </div>
 
-                    {/* Total */}
-                    <td className="py-3 px-3 text-right font-mono-numbers font-black text-emerald-950 text-sm whitespace-nowrap">
-                      {formatCurrency(cuenta.totalAmount)}
-                    </td>
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                    <div>
+                      <span className="text-[10px] uppercase text-slate-400 font-bold block">
+                        Total ({cuenta.services.length} {cuenta.services.length === 1 ? 'servicio' : 'servicios'})
+                      </span>
+                      <span className="text-sm font-black font-mono-numbers tabular-nums text-emerald-950">
+                        {formatCurrency(cuenta.totalAmount)}
+                      </span>
+                    </div>
 
-                    {/* Status dropdown */}
-                    <td className="py-3 px-3 text-center">
-                      <select
-                        value={cuenta.status}
-                        disabled={cuenta.status === 'anulada'}
-                        onChange={(e) => onStatusChange(cuenta.id, e.target.value as CuentaStatus)}
-                        className={`text-[11px] font-bold px-2 py-1 rounded-md border text-center transition-colors ${
-                          cuenta.status === 'pagada'
-                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300 cursor-pointer'
-                            : cuenta.status === 'anulada'
-                            ? 'bg-rose-50 text-rose-800 border-rose-300 cursor-not-allowed opacity-80'
-                            : 'bg-orange-50 text-orange-800 border-orange-300 cursor-pointer'
-                        }`}
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => onView(cuenta)}
+                        title="Ver Documento Formal"
+                        className="min-h-[38px] px-2.5 py-1.5 text-xs font-semibold text-emerald-900 bg-emerald-50 hover:bg-emerald-100 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
                       >
-                        <option value="emitida">Emitida</option>
-                        <option value="pagada">Pagada</option>
-                        <option value="anulada">Anulada</option>
-                      </select>
-                    </td>
+                        <Eye className="w-3.5 h-3.5 text-emerald-700" />
+                        <span>Ver</span>
+                      </button>
 
-                    {/* Actions */}
-                    <td className="py-3 px-3 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => onView(cuenta)}
-                          title="Ver Documento Formal"
-                          className="p-1.5 text-emerald-800 hover:text-emerald-950 hover:bg-emerald-50 rounded-md transition-colors"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
+                      <button
+                        type="button"
+                        onClick={() => onEdit(cuenta)}
+                        title="Editar Datos"
+                        className="min-h-[38px] min-w-[38px] flex items-center justify-center text-slate-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                      >
+                        <FileText className="w-4 h-4" />
+                      </button>
 
-                        <button
-                          onClick={() => onDuplicate(cuenta)}
-                          title="Duplicar como Nueva Cuenta (Nuevo Consecutivo)"
-                          className="p-1.5 text-slate-600 hover:text-orange-700 hover:bg-orange-50 rounded-md transition-colors"
-                        >
-                          <Copy className="w-4 h-4" />
-                        </button>
+                      <button
+                        type="button"
+                        onClick={() => onDuplicate(cuenta)}
+                        title="Duplicar Cuenta"
+                        className="min-h-[38px] min-w-[38px] flex items-center justify-center text-slate-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-colors cursor-pointer"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
 
-                        <button
-                          onClick={() => onEdit(cuenta)}
-                          title="Editar Datos"
-                          className="p-1.5 text-slate-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-md transition-colors"
-                        >
-                          <FileText className="w-4 h-4" />
-                        </button>
+                      <button
+                        type="button"
+                        onClick={() => setCuentaToDelete(cuenta)}
+                        title="Eliminar registro"
+                        className="min-h-[38px] min-w-[38px] flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
 
-                        <button
-                          type="button"
-                          onClick={() => setCuentaToDelete(cuenta)}
-                          title="Eliminar registro"
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
+            {/* Desktop Table (>= md) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-emerald-50/70 border-b border-emerald-100 text-[11px] font-bold text-emerald-950 uppercase tracking-wider">
+                    <th className="py-3 px-3 w-28">Consecutivo</th>
+                    <th className="py-3 px-3 w-28">Fecha</th>
+                    <th className="py-3 px-3 w-24">Placa</th>
+                    <th className="py-3 px-4">Conductor y Cédula</th>
+                    <th className="py-3 px-3">Servicios</th>
+                    <th className="py-3 px-3 text-right">Total (COP)</th>
+                    <th className="py-3 px-3 text-center w-28">Estado</th>
+                    <th className="py-3 px-3 text-center w-36">Acciones</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-emerald-50/60">
+                  {filtered.map((cuenta) => (
+                    <tr key={cuenta.id} className="hover:bg-emerald-50/30 transition-colors">
+                      {/* Consecutivo */}
+                      <td className="py-3 px-3 font-mono-numbers tabular-nums font-bold text-emerald-950 whitespace-nowrap">
+                        {cuenta.consecutiveFormatted}
+                      </td>
+
+                      {/* Fecha */}
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <div className="text-slate-700 font-mono-numbers tabular-nums">{cuenta.date}</div>
+                        {cuenta.paymentDueDate && (
+                          <div className="text-[10px] text-orange-800 font-medium font-mono-numbers tabular-nums">
+                            Pago: {cuenta.paymentDueDate}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Placa */}
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <span className="font-mono-numbers font-bold text-orange-950">
+                          {cuenta.vehiclePlate}
+                        </span>
+                      </td>
+
+                      {/* Conductor */}
+                      <td className="py-3 px-4">
+                        <div className="font-bold text-slate-900 truncate max-w-[220px]">
+                          {cuenta.driverName}
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-mono-numbers tabular-nums">
+                          CC: {cuenta.driverId}
+                        </div>
+                      </td>
+
+                      {/* Servicios count and preview */}
+                      <td className="py-3 px-3">
+                        <div className="text-slate-800 font-medium">
+                          {cuenta.services.length} {cuenta.services.length === 1 ? 'servicio' : 'servicios'}
+                        </div>
+                        <div className="text-[11px] text-slate-400 truncate max-w-[180px]">
+                          {cuenta.services[0]?.clientDetail || 'Transporte terrestre'}
+                        </div>
+                      </td>
+
+                      {/* Total */}
+                      <td className="py-3 px-3 text-right font-mono-numbers tabular-nums font-black text-emerald-950 text-sm whitespace-nowrap">
+                        {formatCurrency(cuenta.totalAmount)}
+                      </td>
+
+                      {/* Status dropdown */}
+                      <td className="py-3 px-3 text-center">
+                        <select
+                          value={cuenta.status}
+                          disabled={cuenta.status === 'anulada'}
+                          onChange={(e) => onStatusChange(cuenta.id, e.target.value as CuentaStatus)}
+                          className={`text-[11px] font-bold px-2 py-1 rounded-md border text-center transition-colors ${
+                            cuenta.status === 'pagada'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300 cursor-pointer'
+                              : cuenta.status === 'anulada'
+                              ? 'bg-rose-50 text-rose-800 border-rose-300 cursor-not-allowed opacity-80'
+                              : 'bg-orange-50 text-orange-800 border-orange-300 cursor-pointer'
+                          }`}
+                        >
+                          <option value="emitida">Emitida</option>
+                          <option value="pagada">Pagada</option>
+                          <option value="anulada">Anulada</option>
+                        </select>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="py-3 px-3 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => onView(cuenta)}
+                            title="Ver Documento Formal"
+                            className="p-1.5 text-emerald-800 hover:text-emerald-950 hover:bg-emerald-50 rounded-md transition-colors cursor-pointer"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            onClick={() => onDuplicate(cuenta)}
+                            title="Duplicar como Nueva Cuenta (Nuevo Consecutivo)"
+                            className="p-1.5 text-slate-600 hover:text-orange-700 hover:bg-orange-50 rounded-md transition-colors cursor-pointer"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            onClick={() => onEdit(cuenta)}
+                            title="Editar Datos"
+                            className="p-1.5 text-slate-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-md transition-colors cursor-pointer"
+                          >
+                            <FileText className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setCuentaToDelete(cuenta)}
+                            title="Eliminar registro"
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 

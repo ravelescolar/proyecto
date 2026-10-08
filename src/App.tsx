@@ -106,9 +106,21 @@ export default function App() {
     setAuthError(null);
     try {
       await signInWithGoogle();
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Error signing in with Google:', err);
-      setAuthError('No se pudo completar el inicio de sesión con Google. Por favor intenta nuevamente.');
+      const code = (err as { code?: string })?.code || '';
+      if (code === 'auth/unauthorized-domain') {
+        const domain = window.location.hostname;
+        setAuthError(
+          `El dominio "${domain}" aún no está autorizado en Firebase Auth. Ve a Firebase Console → Authentication → Settings → Authorized domains y agrega "${domain}".`
+        );
+      } else if (code === 'auth/popup-blocked') {
+        setAuthError(
+          'El navegador bloqueó la ventana emergente de Google. Por favor permite ventanas emergentes (pop-ups) para este sitio e intenta de nuevo.'
+        );
+      } else {
+        setAuthError('No se pudo completar el inicio de sesión con Google. Por favor intenta nuevamente.');
+      }
     }
   };
 
@@ -303,10 +315,11 @@ export default function App() {
         userEmail={user.email}
         isSyncing={isSyncing}
         onSignOut={handleSignOut}
+        hasActivePreview={Boolean(selectedCuenta)}
       />
 
       {syncError && (
-        <div className="max-w-5xl w-full mx-auto mt-4 px-4">
+        <div className="max-w-5xl w-full mx-auto mt-3 sm:mt-4 px-3 sm:px-4">
           <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
@@ -315,7 +328,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setSyncError(null)}
-              className="text-xs font-bold underline"
+              className="text-xs font-bold underline shrink-0"
             >
               Cerrar
             </button>
@@ -323,7 +336,7 @@ export default function App() {
         </div>
       )}
 
-      <main className="flex-1 py-6 px-4 sm:px-6 lg:px-8">
+      <main className="flex-1 py-4 sm:py-6 px-3 sm:px-6 lg:px-8 pb-24 md:pb-8">
         {currentTab === 'form' && (
           <CuentaForm
             onGenerate={handleGenerate}
