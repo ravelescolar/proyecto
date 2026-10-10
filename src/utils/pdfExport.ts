@@ -142,7 +142,7 @@ export function generateCuentaPdfDocument(cuenta: CuentaDeCobro): jsPDF {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(cGray[0], cGray[1], cGray[2]);
-  doc.text(`${cuenta.city || 'Barranquilla'}, ${cuenta.date}`, rightBoxX + 31, y + 16.5, { align: 'center' });
+  doc.text(`${cuenta.city || 'Medellín'}, ${cuenta.date}`, rightBoxX + 31, y + 16.5, { align: 'center' });
 
   if (cuenta.paymentDueDate) {
     doc.setFont('helvetica', 'bold');
@@ -409,6 +409,107 @@ export async function downloadCuentaPDF(cuenta: CuentaDeCobro): Promise<{ succes
     console.error('Error generating direct vector PDF:', error);
     return { success: false };
   }
+}
+
+/**
+ * Builds the formatted WhatsApp summary message for a Cuenta de Cobro.
+ */
+export function buildWhatsAppSummaryText(cuenta: CuentaDeCobro): string {
+  return `📋 *CUENTA DE COBRO ${cuenta.consecutiveFormatted}*
+🏢 *Empresa:* ${cuenta.companyName || 'TRANSPORTES RAVEL'} (NIT: ${cuenta.companyNit || '900.388.163-2'})
+👤 *Persona a Pagar:* ${cuenta.paymentData.accountHolder || cuenta.driverName}
+🆔 *Cédula:* ${cuenta.paymentData.identification || cuenta.driverId}
+🚗 *Placa:* ${cuenta.vehiclePlate}
+📅 *Fecha Emisión:* ${cuenta.date}
+⏳ *Fecha Pactada de Pago:* ${cuenta.paymentDueDate || cuenta.date}
+💰 *Total a Pagar:* ${formatCurrency(cuenta.totalAmount)}
+📝 *Servicios:* ${cuenta.services.length} recorridos
+
+💳 *DATOS DE PAGO:*
+• Banco: ${cuenta.paymentData.bank}
+• Tipo: ${cuenta.paymentData.accountType}
+• N° de Cuenta: ${cuenta.paymentData.accountNumber}
+• Titular: ${cuenta.paymentData.accountHolder || cuenta.driverName}
+
+Generada a través del sistema oficial de Transportes Ravel.`;
+}
+
+/**
+ * Exports and shares the actual PDF file directly to WhatsApp on mobile devices using the Web Share API (`navigator.share({ files })`),
+ * or falls back to downloading the PDF + opening WhatsApp with the summary text if file sharing is not supported by the browser.
+ */
+export async function shareCuentaPDFViaWhatsApp(
+  cuenta: CuentaDeCobro
+): Promise<{ mode: 'native-file' | 'fallback-whatsapp' | 'cancelled'; blobUrl?: string }> {
+  const fileName = generatePdfFileName(
+    cuenta.paymentDueDate || cuenta.date,
+    cuenta.paymentData.identification || cuenta.driverId,
+    cuenta.paymentData.accountHolder || cuenta.driverName
+  );
+
+  const doc = generateCuentaPdfDocument(cuenta);
+  const blob = doc.output('blob');
+  const blobUrl = URL.createObjectURL(blob);
+  const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
+  const summaryText = buildWhatsAppSummaryText(cuenta);
+
+  // 1. Mobile Native File Sharing (Android Chrome / iOS Safari -> Select WhatsApp with PDF attached)
+  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+    const canShareFile =
+      typeof navigator.canShare === 'function' ? navigator.canShare({ files: [pdfFile] }) : true;
+
+    if (canShareFile) {
+      try {
+        await navigator.share({
+          files: [pdfFile],
+          title: `Cuenta de Cobro ${cuenta.consecutiveFormatted} - ${cuenta.driverName}`,
+          text: summaryText,
+        });
+        return { mode: 'native-file', blobUrl };
+      } catch (err: unknown) {
+        const errorName = (err as { name?: string })?.name || '';
+        if (errorName === 'AbortError') {
+          return { mode: 'cancelled', blobUrl };
+        }
+        // If sharing files failed on this browser, fall through to download + WhatsApp link fallback
+      }
+    }
+  }
+
+  // 2. Fallback for desktop or browsers without File Share API:
+  // Trigger automatic download of the PDF file AND open WhatsApp with the message
+  try {
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = fileName;
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      try {
+        document.body.removeChild(link);
+      } catch {}
+    }, 1500);
+  } catch {}
+
+  const encoded = encodeURIComponent(
+    `${summaryText}\n\n📎 *Archivo PDF descargado:* ${fileName}`
+  );
+  const whatsappUrl = `https://api.whatsapp.com/send?text=${encoded}`;
+
+  const waLink = document.createElement('a');
+  waLink.href = whatsappUrl;
+  waLink.target = '_blank';
+  waLink.rel = 'noopener noreferrer';
+  document.body.appendChild(waLink);
+  waLink.click();
+  setTimeout(() => {
+    try {
+      document.body.removeChild(waLink);
+    } catch {}
+  }, 1000);
+
+  return { mode: 'fallback-whatsapp', blobUrl };
 }
 
 export function printDocument(): void {

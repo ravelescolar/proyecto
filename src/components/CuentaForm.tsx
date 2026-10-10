@@ -37,6 +37,8 @@ interface CuentaFormProps {
   initialCuenta?: CuentaDeCobro | null;
   settings?: AppSettings;
   driverProfiles?: DriverProfile[];
+  isAdmin?: boolean;
+  userUid?: string;
 }
 
 export const CuentaForm: React.FC<CuentaFormProps> = ({
@@ -45,9 +47,15 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
   initialCuenta,
   settings: propSettings,
   driverProfiles: propDrivers,
+  isAdmin = false,
+  userUid = '',
 }) => {
   const settings = propSettings || loadSettings();
-  const driverProfiles = propDrivers || loadDriverProfiles();
+  const rawDrivers = propDrivers || loadDriverProfiles();
+  // Standard users can ONLY see and autocomplete their own driver profiles; Admins can autocomplete from the general company database
+  const driverProfiles = isAdmin
+    ? rawDrivers
+    : rawDrivers.filter((d) => !userUid || d.ownerId === userUid);
 
   // Form State
   const [consecutiveNum, setConsecutiveNum] = useState<number>(() => {
@@ -65,7 +73,11 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
     d.setDate(d.getDate() + 5);
     return d.toISOString().split('T')[0];
   });
-  const [city, setCity] = useState<string>(() => initialCuenta?.city || settings.defaultCity || 'Barranquilla');
+  const [city, setCity] = useState<string>(() => {
+    if (initialCuenta?.city) return initialCuenta.city;
+    if (settings.defaultCity && settings.defaultCity !== 'Barranquilla') return settings.defaultCity;
+    return 'Medellín';
+  });
 
   // Vehicle & Driver
   const [vehiclePlate, setVehiclePlate] = useState<string>(initialCuenta?.vehiclePlate || '');
@@ -158,10 +170,16 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
       }))
     );
 
-    // Direct exact match
-    const exact = findDriverByPlate(formatted);
-    if (exact) {
-      applyDriverProfile(exact);
+    // Direct exact match within user's permitted driverProfiles only if there is a single unambiguous payee for this plate
+    const cleanExact = formatted.replace(/[^A-Z0-9]/g, '');
+    const exactMatches = driverProfiles.filter(
+      (p) => p.plate.replace(/[^A-Z0-9]/g, '') === cleanExact
+    );
+    if (exactMatches.length === 1) {
+      applyDriverProfile(exactMatches[0]);
+    } else if (exactMatches.length > 1) {
+      setPlateSuggestions(exactMatches);
+      setShowPlateDropdown(true);
     }
   };
 
@@ -260,6 +278,38 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
   const totalAmount = services.reduce((sum, item) => sum + (Number(item.value) || 0), 0);
   const amountWords = numberToWords(totalAmount);
 
+  // Helper to format YYYY-MM into Spanish month + year (e.g. "Septiembre de 2026")
+  const formatMonthYearLabel = (ym: string): string => {
+    const [year, month] = ym.split('-');
+    const monthNames = [
+      'Enero',
+      'Febrero',
+      'Marzo',
+      'Abril',
+      'Mayo',
+      'Junio',
+      'Julio',
+      'Agosto',
+      'Septiembre',
+      'Octubre',
+      'Noviembre',
+      'Diciembre',
+    ];
+    const mIdx = parseInt(month, 10) - 1;
+    return `${monthNames[mIdx] || month} de ${year}`;
+  };
+
+  // Detect distinct YYYY-MM months across all service rows
+  const distinctServiceMonths = Array.from(
+    new Set(
+      services
+        .map((s) => (s.date || '').trim().slice(0, 7))
+        .filter((ym) => /^\d{4}-\d{2}$/.test(ym))
+    )
+  );
+  const hasMultipleMonthsError = distinctServiceMonths.length > 1;
+  const primaryServiceMonth = distinctServiceMonths[0] || '';
+
   // Validation
   const validateForm = (): boolean => {
     const errs: Record<string, string> = {};
@@ -282,6 +332,10 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
       const hasValidRow = services.some((s) => s.value > 0);
       if (!hasValidRow) {
         errs.services = 'Al menos un servicio debe tener un valor mayor a $0';
+      }
+      if (hasMultipleMonthsError) {
+        const monthsReadable = distinctServiceMonths.map(formatMonthYearLabel).join(', ');
+        errs.services = `No se permiten servicios de meses diferentes en una misma cuenta de cobro (${monthsReadable}). Todos los servicios deben pertenecer al mismo mes.`;
       }
     }
     if (!paymentData.bank) {
@@ -367,9 +421,12 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
   };
 
   const loadLatestCuenta = () => {
-    const list = loadCuentas();
+    const allList = loadCuentas();
+    const list = isAdmin
+      ? allList
+      : allList.filter((c) => !userUid || c.ownerId === userUid);
     if (list.length === 0) {
-      setErrors({ form: 'Aún no hay cuentas anteriores guardadas en el historial.' });
+      setErrors({ form: 'Aún no tienes cuentas anteriores guardadas en tu historial.' });
       setTimeout(() => setErrors({}), 4000);
       return;
     }
@@ -451,24 +508,26 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
             {/* Consecutive */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
-                <span>Consecutivo:</span>
-                <button
-                  type="button"
-                  onClick={() => setIsCustomConsecutive(!isCustomConsecutive)}
-                  className="text-[10px] text-orange-600 font-semibold hover:underline"
-                >
-                  {isCustomConsecutive ? 'Bloquear' : 'Editar'}
-                </button>
+                <span>Consecutivo Único:</span>
+                {isAdmin && !initialCuenta && (
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomConsecutive(!isCustomConsecutive)}
+                    className="text-[10px] text-orange-600 font-semibold hover:underline cursor-pointer"
+                  >
+                    {isCustomConsecutive ? 'Bloquear' : 'Ajustar'}
+                  </button>
+                )}
               </label>
               <div className="relative">
                 <input
                   type="number"
                   min="1"
-                  readOnly={!isCustomConsecutive}
+                  readOnly={!isAdmin || !isCustomConsecutive || Boolean(initialCuenta)}
                   value={consecutiveNum}
                   onChange={(e) => setConsecutiveNum(parseInt(e.target.value, 10) || 1)}
                   className={`w-full px-3 py-2 text-sm font-bold font-mono-numbers rounded-lg border ${
-                    isCustomConsecutive
+                    isAdmin && isCustomConsecutive && !initialCuenta
                       ? 'border-orange-400 bg-orange-50/50 focus:ring-2 focus:ring-orange-500'
                       : 'border-emerald-100 bg-emerald-50/40 text-emerald-950 cursor-not-allowed'
                   }`}
@@ -477,7 +536,9 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
                   {formatConsecutive(settings.prefix, consecutiveNum)}
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400 mt-1">Automático</p>
+              <p className="text-[10px] text-emerald-800 font-medium mt-1">
+                Consecutivo irrepetible
+              </p>
             </div>
 
             {/* Emission Date */}
@@ -533,7 +594,7 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
                 type="text"
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
-                placeholder="Barranquilla"
+                placeholder="Medellín"
                 className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               />
             </div>
@@ -565,7 +626,11 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
             </div>
             <span className="text-[11px] text-orange-800 font-medium flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-orange-500 shrink-0" />
-              <span>Autocompletado activo por placa</span>
+              <span>
+                {isAdmin
+                  ? 'Autocompletado activo (Base de datos general)'
+                  : 'Autocompletado activo (Solo tus datos propios)'}
+              </span>
             </span>
           </div>
 
@@ -599,10 +664,10 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
               )}
 
               {/* Suggestions dropdown */}
-              {showPlateDropdown && (
+              {showPlateDropdown && driverProfiles.length > 0 && (
                 <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-emerald-200 rounded-xl shadow-lg overflow-hidden max-h-56 overflow-y-auto">
                   <div className="p-2 text-[10px] font-bold text-emerald-800 bg-emerald-50 uppercase tracking-wider border-b border-emerald-100 flex justify-between items-center">
-                    <span>Vehículos guardados</span>
+                    <span>{isAdmin ? 'Base de datos general de vehículos' : 'Mis vehículos guardados'}</span>
                     <button
                       type="button"
                       onClick={() => setShowPlateDropdown(false)}
@@ -611,26 +676,35 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
                       Cerrar
                     </button>
                   </div>
-                  {(plateSuggestions.length > 0 ? plateSuggestions : driverProfiles).map((prof) => (
-                    <button
-                      key={prof.id}
-                      type="button"
-                      onClick={() => applyDriverProfile(prof)}
-                      className="w-full text-left px-3 py-2 hover:bg-emerald-50 transition-colors flex items-center justify-between border-b border-slate-50 last:border-none"
-                    >
-                      <div>
-                        <div className="text-xs font-bold text-emerald-950 font-mono-numbers">
-                          {prof.plate}
+                  {(plateSuggestions.length > 0 ? plateSuggestions : driverProfiles).map((prof) => {
+                    const payeeName = prof.paymentData?.accountHolder || prof.driverName;
+                    const payeeId = prof.paymentData?.identification || prof.idNumber;
+                    return (
+                      <button
+                        key={prof.id}
+                        type="button"
+                        onClick={() => applyDriverProfile(prof)}
+                        className="w-full text-left px-3 py-2 hover:bg-emerald-50 transition-colors flex items-center justify-between border-b border-slate-50 last:border-none"
+                      >
+                        <div>
+                          <div className="text-xs font-bold text-emerald-950 font-mono-numbers flex items-center gap-1.5">
+                            <span>{prof.plate}</span>
+                            <span className="text-[10px] font-normal text-slate-400">·</span>
+                            <span className="text-[10px] font-semibold text-orange-700 truncate max-w-[140px]">
+                              Pagar a: {payeeName}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-600 truncate max-w-[200px]">
+                            Cond: {prof.driverName}
+                          </div>
                         </div>
-                        <div className="text-[11px] text-slate-600 truncate max-w-[180px]">
-                          {prof.driverName}
+                        <div className="text-[10px] text-slate-400 font-mono-numbers text-right shrink-0">
+                          <div>CC/NIT: {payeeId}</div>
+                          <div className="text-[9px] text-emerald-700">{prof.paymentData?.bank}</div>
                         </div>
-                      </div>
-                      <div className="text-[10px] text-slate-400 font-mono-numbers">
-                        CC: {prof.idNumber}
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -699,26 +773,44 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
         {/* Section 3: Dynamic Services Table */}
         <div className="bg-white p-5 sm:p-6 rounded-2xl border border-emerald-100 shadow-xs">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 mb-4 border-b border-emerald-50">
-            <div className="flex items-center gap-2">
-              <FileText className="w-4 h-4 text-emerald-600" />
-              <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-900">
-                3. Relación de Servicios de Transporte
-              </h3>
+            <div>
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-emerald-600" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-900">
+                  3. Relación de Servicios de Transporte
+                </h3>
+                {primaryServiceMonth && !hasMultipleMonthsError && (
+                  <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-md">
+                    Mes: {formatMonthYearLabel(primaryServiceMonth)}
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Todos los servicios de una cuenta de cobro deben corresponder al mismo mes.
+              </p>
             </div>
             <button
               type="button"
               onClick={addServiceRow}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs transition-colors self-start sm:self-auto"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs transition-colors self-start sm:self-auto cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5 text-orange-300" />
               Agregar Fila de Servicio
             </button>
           </div>
 
-          {errors.services && (
+          {(errors.services || hasMultipleMonthsError) && (
             <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{errors.services}</span>
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <span>
+                {hasMultipleMonthsError
+                  ? `No se permiten servicios de dos meses diferentes en una misma cuenta (${distinctServiceMonths
+                      .map(formatMonthYearLabel)
+                      .join(' y ')}). Corrige las fechas resaltadas para que todas pertenezcan a ${formatMonthYearLabel(
+                      primaryServiceMonth
+                    )}.`
+                  : errors.services}
+              </span>
             </div>
           )}
 
@@ -789,7 +881,13 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
                       type="date"
                       value={row.date}
                       onChange={(e) => updateServiceRow(row.id, 'date', e.target.value)}
-                      className="w-full px-2.5 py-2 text-xs rounded-lg border border-slate-200 bg-white focus:ring-2 focus:ring-emerald-500"
+                      className={`w-full px-2.5 py-2 text-xs rounded-lg border ${
+                        primaryServiceMonth &&
+                        row.date &&
+                        row.date.slice(0, 7) !== primaryServiceMonth
+                          ? 'border-rose-400 bg-rose-50 text-rose-900 font-bold focus:ring-2 focus:ring-rose-500'
+                          : 'border-slate-200 bg-white focus:ring-2 focus:ring-emerald-500'
+                      }`}
                     />
                   </div>
                   <div>
@@ -890,7 +988,13 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
                         type="date"
                         value={row.date}
                         onChange={(e) => updateServiceRow(row.id, 'date', e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-xs rounded-md border border-slate-200 bg-white focus:ring-1 focus:ring-emerald-500"
+                        className={`w-full px-2.5 py-1.5 text-xs rounded-md border ${
+                          primaryServiceMonth &&
+                          row.date &&
+                          row.date.slice(0, 7) !== primaryServiceMonth
+                            ? 'border-rose-400 bg-rose-50 text-rose-900 font-bold focus:ring-1 focus:ring-rose-500'
+                            : 'border-slate-200 bg-white focus:ring-1 focus:ring-emerald-500'
+                        }`}
                       />
                     </td>
 

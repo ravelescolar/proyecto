@@ -16,6 +16,7 @@ export interface PaymentData {
 
 export interface DriverProfile {
   id: string;
+  ownerId?: string;
   plate: string;
   driverName: string;
   idNumber: string;
@@ -30,6 +31,8 @@ export type CuentaStatus = 'emitida' | 'pagada' | 'anulada';
 
 export interface CuentaDeCobro {
   id: string;
+  ownerId?: string;
+  ownerEmail?: string;
   consecutive: number;
   consecutiveFormatted: string;
   date: string;
@@ -66,4 +69,13 @@ export interface AppSettings {
   defaultConcept: string;
   companyLogoUrl?: string;
   companySlogan?: string;
+}
+
+export interface AdminMember {
+  uid: string;
+  email: string;
+  role: 'admin';
+  addedBy: string;
+  createdAt: string;
+  updatedAt: string;
 }

@@ -18,6 +18,7 @@ export interface RuleEvaluationContext {
   existingData?: Record<string, unknown> | null;
   incomingData?: Record<string, unknown> | null;
   parentCuentaDataAfter?: Record<string, unknown> | null;
+  isRegisteredAdminInDb?: boolean;
 }
 
 const ID_REGEX = /^[a-zA-Z0-9_-]+$/;
@@ -30,9 +31,15 @@ const VALID_ACCOUNT_TYPES = [
   'Otro',
 ];
 const VALID_STATUSES = ['emitida', 'pagada', 'anulada'];
+const BOOTSTRAP_ADMIN_EMAIL = 'ravelescolar@gmail.com';
 
 function isValidId(id: string | undefined): boolean {
   return typeof id === 'string' && id.length >= 1 && id.length <= 128 && ID_REGEX.test(id);
+}
+
+function isAdmin(ctx: RuleEvaluationContext): boolean {
+  if (!ctx.auth || !ctx.auth.email_verified) return false;
+  return ctx.auth.email === BOOTSTRAP_ADMIN_EMAIL || Boolean(ctx.isRegisteredAdminInDb);
 }
 
 function hasExactKeys(data: Record<string, unknown>, requiredKeys: string[]): boolean {
@@ -43,7 +50,7 @@ function hasExactKeys(data: Record<string, unknown>, requiredKeys: string[]): bo
   );
 }
 
-function isValidDriverProfile(data: Record<string, unknown>, auth: AuthContext): boolean {
+function isValidDriverProfile(data: Record<string, unknown>): boolean {
   const required = [
     'ownerId',
     'plate',
@@ -62,7 +69,7 @@ function isValidDriverProfile(data: Record<string, unknown>, auth: AuthContext):
     'updatedAt',
   ];
   if (!hasExactKeys(data, required)) return false;
-  if (typeof data.ownerId !== 'string' || !isValidId(data.ownerId) || data.ownerId !== auth.uid) return false;
+  if (typeof data.ownerId !== 'string' || !isValidId(data.ownerId)) return false;
   if (typeof data.plate !== 'string' || data.plate.length < 1 || data.plate.length > 20) return false;
   if (typeof data.driverName !== 'string' || data.driverName.length < 1 || data.driverName.length > 150) return false;
   if (typeof data.idNumber !== 'string' || data.idNumber.length > 50) return false;
@@ -98,9 +105,10 @@ function isValidDriverProfile(data: Record<string, unknown>, auth: AuthContext):
   return true;
 }
 
-function isValidCuentaDeCobro(data: Record<string, unknown>, auth: AuthContext): boolean {
+function isValidCuentaDeCobro(data: Record<string, unknown>): boolean {
   const required = [
     'ownerId',
+    'ownerEmail',
     'consecutive',
     'consecutiveFormatted',
     'date',
@@ -128,7 +136,8 @@ function isValidCuentaDeCobro(data: Record<string, unknown>, auth: AuthContext):
     'updatedAt',
   ];
   if (!hasExactKeys(data, required)) return false;
-  if (typeof data.ownerId !== 'string' || !isValidId(data.ownerId) || data.ownerId !== auth.uid) return false;
+  if (typeof data.ownerId !== 'string' || !isValidId(data.ownerId)) return false;
+  if (typeof data.ownerEmail !== 'string' || data.ownerEmail.length > 150) return false;
   if (
     typeof data.consecutive !== 'number' ||
     !Number.isInteger(data.consecutive) ||
@@ -169,9 +178,13 @@ function isValidCuentaDeCobro(data: Record<string, unknown>, auth: AuthContext):
 
 export function evaluateRule(ctx: RuleEvaluationContext): 'ALLOW' | 'PERMISSION_DENIED' {
   if (!ctx.auth) return 'PERMISSION_DENIED';
+  const admin = isAdmin(ctx);
 
   if (ctx.operation === 'get' || ctx.operation === 'list') {
-    if (!ctx.existingData || ctx.existingData.ownerId !== ctx.auth.uid) {
+    if (ctx.path.startsWith('/settings/global')) {
+      return 'ALLOW';
+    }
+    if (!ctx.existingData || (ctx.existingData.ownerId !== ctx.auth.uid && !admin)) {
       return 'PERMISSION_DENIED';
     }
     return 'ALLOW';
@@ -185,11 +198,17 @@ export function evaluateRule(ctx: RuleEvaluationContext): 'ALLOW' | 'PERMISSION_
     if (!isValidId(idVal)) return 'PERMISSION_DENIED';
   }
 
+  if (ctx.path.startsWith('/admins/')) {
+    if (!admin) return 'PERMISSION_DENIED';
+    return 'ALLOW';
+  }
+
   if (ctx.path.startsWith('/cuentas/') && ctx.path.includes('/services/')) {
-    if (!ctx.parentCuentaDataAfter || ctx.parentCuentaDataAfter.ownerId !== ctx.auth.uid) {
+    if (!ctx.parentCuentaDataAfter) return 'PERMISSION_DENIED';
+    if (ctx.parentCuentaDataAfter.ownerId !== ctx.auth.uid && !admin) {
       return 'PERMISSION_DENIED';
     }
-    if (ctx.parentCuentaDataAfter.status === 'anulada') {
+    if (ctx.parentCuentaDataAfter.status === 'anulada' && !admin) {
       return 'PERMISSION_DENIED';
     }
   }
@@ -199,47 +218,67 @@ export function evaluateRule(ctx: RuleEvaluationContext): 'ALLOW' | 'PERMISSION_
     if (ctx.incomingData.createdAt !== ctx.requestTime || ctx.incomingData.updatedAt !== ctx.requestTime) {
       return 'PERMISSION_DENIED';
     }
+    if (ctx.incomingData.ownerId !== ctx.auth.uid) {
+      return 'PERMISSION_DENIED';
+    }
     if (ctx.path.startsWith('/drivers/')) {
-      return isValidDriverProfile(ctx.incomingData, ctx.auth) ? 'ALLOW' : 'PERMISSION_DENIED';
+      return isValidDriverProfile(ctx.incomingData) ? 'ALLOW' : 'PERMISSION_DENIED';
     }
     if (ctx.path.startsWith('/cuentas/') && !ctx.path.includes('/services/')) {
-      return isValidCuentaDeCobro(ctx.incomingData, ctx.auth) ? 'ALLOW' : 'PERMISSION_DENIED';
+      return isValidCuentaDeCobro(ctx.incomingData) ? 'ALLOW' : 'PERMISSION_DENIED';
     }
   }
 
   if (ctx.operation === 'update') {
     if (!ctx.existingData || !ctx.incomingData) return 'PERMISSION_DENIED';
-    if (ctx.existingData.ownerId !== ctx.auth.uid) return 'PERMISSION_DENIED';
-    if (ctx.incomingData.ownerId !== ctx.existingData.ownerId) return 'PERMISSION_DENIED';
     if (ctx.incomingData.createdAt !== ctx.existingData.createdAt) return 'PERMISSION_DENIED';
     if (ctx.incomingData.updatedAt !== ctx.requestTime) return 'PERMISSION_DENIED';
 
+    if (ctx.path.startsWith('/settings/')) {
+      const userId = ctx.idParams.userId;
+      if (userId === 'global') {
+        if (admin) return 'ALLOW';
+        // Standard user can only increment nextConsecutive on /settings/global
+        const oldNext = Number(ctx.existingData.nextConsecutive) || 0;
+        const newNext = Number(ctx.incomingData.nextConsecutive) || 0;
+        if (newNext <= oldNext) return 'PERMISSION_DENIED';
+        if (ctx.incomingData.companyName !== ctx.existingData.companyName) return 'PERMISSION_DENIED';
+        if (ctx.incomingData.prefix !== ctx.existingData.prefix) return 'PERMISSION_DENIED';
+        return 'ALLOW';
+      }
+      if (ctx.existingData.ownerId !== ctx.auth.uid && !admin) return 'PERMISSION_DENIED';
+      return 'ALLOW';
+    }
+
+    if (ctx.existingData.ownerId !== ctx.auth.uid && !admin) return 'PERMISSION_DENIED';
+    if (ctx.incomingData.ownerId !== ctx.existingData.ownerId) return 'PERMISSION_DENIED';
+
     if (ctx.path.startsWith('/cuentas/') && !ctx.path.includes('/services/')) {
-      if (ctx.existingData.status === 'anulada') return 'PERMISSION_DENIED';
-      return isValidCuentaDeCobro(ctx.incomingData, ctx.auth) ? 'ALLOW' : 'PERMISSION_DENIED';
+      if (ctx.incomingData.consecutive !== ctx.existingData.consecutive && !admin) {
+        return 'PERMISSION_DENIED';
+      }
+      if (ctx.existingData.status === 'anulada' && !admin) return 'PERMISSION_DENIED';
+      return isValidCuentaDeCobro(ctx.incomingData) ? 'ALLOW' : 'PERMISSION_DENIED';
     }
     if (ctx.path.startsWith('/drivers/')) {
-      return isValidDriverProfile(ctx.incomingData, ctx.auth) ? 'ALLOW' : 'PERMISSION_DENIED';
-    }
-    if (ctx.path.startsWith('/settings/')) {
-      if (ctx.incomingData.ownerId !== ctx.idParams.userId) return 'PERMISSION_DENIED';
-      return 'ALLOW';
+      return isValidDriverProfile(ctx.incomingData) ? 'ALLOW' : 'PERMISSION_DENIED';
     }
   }
 
   return 'PERMISSION_DENIED';
 }
 
-const NOW = '2026-10-06T21:30:00Z';
+const NOW = '2026-10-08T17:45:00Z';
 const ATTACKER: AuthContext = { uid: 'attacker-uid', email: 'attacker@test.com', email_verified: true };
 
 const baseCuenta: Record<string, unknown> = {
   ownerId: 'attacker-uid',
+  ownerEmail: 'attacker@test.com',
   consecutive: 101,
   consecutiveFormatted: 'CC-0101',
-  date: '2026-10-06',
-  paymentDueDate: '2026-10-11',
-  city: 'Barranquilla',
+  date: '2026-10-08',
+  paymentDueDate: '2026-10-13',
+  city: 'Medellín',
   companyName: 'TRANSPORTES RAVEL',
   companyNit: '900.388.163-2',
   driverName: 'CARLOS MARTINEZ',
@@ -287,21 +326,22 @@ export function runDirtyDozenSecurityTests(): void {
       context: {
         auth: ATTACKER,
         requestTime: NOW,
-        path: '/cuentas/cc-101',
-        idParams: { cuentaId: 'cc-101' },
+        path: '/cuentas/cc-105',
+        idParams: { cuentaId: 'cc-105' },
         operation: 'create',
         incomingData: { ...baseCuenta, ownerId: 'victim-uid' },
       },
     },
     {
-      name: '2. Unverified Email Write Attack',
+      name: '2. Admin Email Spoofing sin Email Verificado',
       context: {
-        auth: { ...ATTACKER, email_verified: false },
+        auth: { uid: 'spoof-uid', email: 'ravelescolar@gmail.com', email_verified: false },
         requestTime: NOW,
-        path: '/drivers/drv-1',
-        idParams: { driverId: 'drv-1' },
-        operation: 'create',
-        incomingData: baseDriver,
+        path: '/cuentas/cc-101',
+        idParams: { cuentaId: 'cc-101' },
+        operation: 'update',
+        existingData: { ...baseCuenta, ownerId: 'victim-uid' },
+        incomingData: { ...baseCuenta, ownerId: 'victim-uid', status: 'pagada' },
       },
     },
     {
@@ -317,7 +357,7 @@ export function runDirtyDozenSecurityTests(): void {
       },
     },
     {
-      name: '4. Terminal State Bypass (anulada -> pagada)',
+      name: '4. Terminal State Bypass por Usuario Estandar (anulada -> pagada)',
       context: {
         auth: ATTACKER,
         requestTime: NOW,
@@ -341,7 +381,7 @@ export function runDirtyDozenSecurityTests(): void {
           ownerId: 'attacker-uid',
           cuentaId: 'cc-missing',
           orderIndex: 0,
-          date: '2026-10-06',
+          date: '2026-10-08',
           plate: 'WDF-452',
           clientDetail: 'Ruta 1',
           value: 100000,
@@ -363,7 +403,7 @@ export function runDirtyDozenSecurityTests(): void {
           ownerId: 'attacker-uid',
           cuentaId: 'cc-victim',
           orderIndex: 0,
-          date: '2026-10-06',
+          date: '2026-10-08',
           plate: 'WDF-452',
           clientDetail: 'Ruta 1',
           value: 100000,
@@ -373,15 +413,15 @@ export function runDirtyDozenSecurityTests(): void {
       },
     },
     {
-      name: '7. Immortal Field Mutation (createdAt tamper)',
+      name: '7. Immortal Field Mutation (consecutive tamper)',
       context: {
         auth: ATTACKER,
         requestTime: NOW,
-        path: '/drivers/drv-1',
-        idParams: { driverId: 'drv-1' },
+        path: '/cuentas/cc-101',
+        idParams: { cuentaId: 'cc-101' },
         operation: 'update',
-        existingData: baseDriver,
-        incomingData: { ...baseDriver, createdAt: '1999-01-01T00:00:00Z' },
+        existingData: baseCuenta,
+        incomingData: { ...baseCuenta, consecutive: 999 },
       },
     },
     {
@@ -422,26 +462,49 @@ export function runDirtyDozenSecurityTests(): void {
       },
     },
     {
-      name: '11. Value Poisoning on Whitelisted Key (invalid status enum)',
+      name: '11. Global Consecutive Rollback / Corporate Tampering por Usuario Estandar',
       context: {
         auth: ATTACKER,
         requestTime: NOW,
-        path: '/cuentas/cc-101',
-        idParams: { cuentaId: 'cc-101' },
+        path: '/settings/global',
+        idParams: { userId: 'global' },
         operation: 'update',
-        existingData: baseCuenta,
-        incomingData: { ...baseCuenta, status: 'hacked_status' },
+        existingData: {
+          ownerId: 'admin-uid',
+          prefix: 'CC-',
+          nextConsecutive: 105,
+          companyName: 'TRANSPORTES RAVEL',
+          companyNit: '900.388.163-2',
+          createdAt: NOW,
+          updatedAt: NOW,
+        },
+        incomingData: {
+          ownerId: 'attacker-uid',
+          prefix: 'CC-',
+          nextConsecutive: 100, // Rollback attempt!
+          companyName: 'TRANSPORTES RAVEL',
+          companyNit: '900.388.163-2',
+          createdAt: NOW,
+          updatedAt: NOW,
+        },
       },
     },
     {
-      name: '12. PII Blanket Read / Unauthorized List Scraping',
+      name: '12. Self-Admin Privilege Escalation',
       context: {
         auth: ATTACKER,
         requestTime: NOW,
-        path: '/drivers/drv-victim',
-        idParams: { driverId: 'drv-victim' },
-        operation: 'get',
-        existingData: { ...baseDriver, ownerId: 'victim-uid' },
+        path: '/admins/attacker-uid',
+        idParams: { adminUid: 'attacker-uid' },
+        operation: 'create',
+        incomingData: {
+          uid: 'attacker-uid',
+          email: 'attacker@test.com',
+          role: 'admin',
+          addedBy: 'attacker-uid',
+          createdAt: NOW,
+          updatedAt: NOW,
+        },
       },
     },
   ];

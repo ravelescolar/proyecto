@@ -8,11 +8,17 @@ import {
   Check,
   Search,
   FileText,
-  Phone
+  Phone,
+  AlertCircle,
+  UserCheck
 } from 'lucide-react';
 import { DriverProfile, PaymentData } from '../types';
 import { COLOMBIAN_BANKS, ACCOUNT_TYPES, formatPlate } from '../utils/colombianFormatters';
-import { saveDriverProfile, deleteDriverProfile } from '../utils/storage';
+import {
+  saveDriverProfile,
+  deleteDriverProfile,
+  findMatchingVehicleByPlateAndPayee
+} from '../utils/storage';
 
 interface ConductoresPlacasProps {
   drivers: DriverProfile[];
@@ -41,20 +47,37 @@ export const ConductoresPlacas: React.FC<ConductoresPlacasProps> = ({
   const [identification, setIdentification] = useState('');
   const [clientInput, setClientInput] = useState('');
   const [frequentClients, setFrequentClients] = useState<string[]>([]);
+  const [formError, setFormError] = useState<string | null>(null);
   const [driverToDelete, setDriverToDelete] = useState<{ id: string; plate: string; name: string } | null>(null);
 
   const filtered = drivers.filter((d) => {
     const term = searchTerm.toLowerCase();
+    const payeeHolder = (d.paymentData?.accountHolder || d.driverName || '').toLowerCase();
+    const payeeId = (d.paymentData?.identification || d.idNumber || '').toLowerCase();
     return (
       d.plate.toLowerCase().includes(term) ||
       d.driverName.toLowerCase().includes(term) ||
-      d.idNumber.toLowerCase().includes(term)
+      d.idNumber.toLowerCase().includes(term) ||
+      payeeHolder.includes(term) ||
+      payeeId.includes(term)
     );
   });
+
+  // Check if the entered plate already exists for other payees
+  const formattedCurrentPlate = formatPlate(plate);
+  const cleanCurrentPlate = formattedCurrentPlate.replace(/[^A-Z0-9]/g, '');
+  const samePlateProfiles = cleanCurrentPlate.length >= 5
+    ? drivers.filter(
+        (d) =>
+          (!editingDriver || d.id !== editingDriver.id) &&
+          d.plate.toUpperCase().replace(/[^A-Z0-9]/g, '') === cleanCurrentPlate
+      )
+    : [];
 
   const handleOpenEdit = (profile: DriverProfile) => {
     setEditingDriver(profile);
     setIsCreating(false);
+    setFormError(null);
     setPlate(profile.plate);
     setDriverName(profile.driverName);
     setIdNumber(profile.idNumber);
@@ -70,6 +93,7 @@ export const ConductoresPlacas: React.FC<ConductoresPlacasProps> = ({
   const handleOpenCreate = () => {
     setEditingDriver(null);
     setIsCreating(true);
+    setFormError(null);
     setPlate('');
     setDriverName('');
     setIdNumber('');
@@ -98,7 +122,33 @@ export const ConductoresPlacas: React.FC<ConductoresPlacasProps> = ({
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     if (!plate.trim() || !driverName.trim()) {
+      return;
+    }
+
+    const effectiveHolder = accountHolder.trim() || driverName.trim();
+    const effectiveIdentification = identification.trim() || idNumber.trim();
+
+    const duplicate = findMatchingVehicleByPlateAndPayee(drivers, {
+      id: editingDriver?.id,
+      plate: formatPlate(plate),
+      driverName: driverName.trim(),
+      idNumber: idNumber.trim(),
+      paymentData: {
+        accountHolder: effectiveHolder,
+        identification: effectiveIdentification,
+      },
+    });
+
+    if (duplicate) {
+      const dupPayee = duplicate.paymentData?.accountHolder || duplicate.driverName;
+      const dupId = duplicate.paymentData?.identification || duplicate.idNumber;
+      setFormError(
+        `El vehículo de placa ${formatPlate(plate)} ya existe registrado para la misma persona a pagar (${dupPayee}${
+          dupId ? ` - C.C./NIT ${dupId}` : ''
+        }). Los vehículos deben ser únicos, a menos que tengan una persona a pagar (titular/beneficiario) diferente.`
+      );
       return;
     }
 
@@ -113,8 +163,8 @@ export const ConductoresPlacas: React.FC<ConductoresPlacasProps> = ({
         bank,
         accountType,
         accountNumber: accountNumber.trim(),
-        accountHolder: accountHolder.trim() || driverName.trim(),
-        identification: identification.trim() || idNumber.trim(),
+        accountHolder: effectiveHolder,
+        identification: effectiveIdentification,
       },
     };
 
@@ -175,6 +225,33 @@ export const ConductoresPlacas: React.FC<ConductoresPlacasProps> = ({
           </div>
 
           <form onSubmit={handleSave} className="space-y-4">
+            {formError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
+                <span>{formError}</span>
+              </div>
+            )}
+
+            {samePlateProfiles.length > 0 && !formError && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs flex items-start gap-2">
+                <UserCheck className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                <div>
+                  <span className="font-bold">Placa {formattedCurrentPlate} ya registrada:</span>{' '}
+                  Actualmente asociada a{' '}
+                  {samePlateProfiles
+                    .map(
+                      (p) =>
+                        `${p.paymentData?.accountHolder || p.driverName} (${
+                          p.paymentData?.identification || p.idNumber || 'Sin C.C.'
+                        })`
+                    )
+                    .join(' · ')}
+                  . Solo puedes crear otro registro con esta misma placa si tiene una{' '}
+                  <strong>persona a pagar (titular / beneficiario) diferente</strong>.
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -234,9 +311,39 @@ export const ConductoresPlacas: React.FC<ConductoresPlacasProps> = ({
             {/* Banking data */}
             <div className="p-3 bg-emerald-50/50 border border-emerald-200/80 rounded-xl space-y-3">
               <span className="text-[11px] font-bold text-emerald-900 block uppercase">
-                Información Bancaria Predeterminada:
+                Información Bancaria y Persona a Pagar (Beneficiario):
               </span>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                    Persona a Pagar (Titular):
+                  </label>
+                  <input
+                    type="text"
+                    placeholder={driverName || 'Nombre del beneficiario'}
+                    value={accountHolder}
+                    onChange={(e) => {
+                      setAccountHolder(e.target.value);
+                      setFormError(null);
+                    }}
+                    className="w-full px-2.5 py-1.5 text-xs uppercase rounded-md border border-slate-300 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                    Cédula / NIT Persona a Pagar:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder={idNumber || 'Documento del titular'}
+                    value={identification}
+                    onChange={(e) => {
+                      setIdentification(e.target.value);
+                      setFormError(null);
+                    }}
+                    className="w-full px-2.5 py-1.5 text-xs font-mono-numbers rounded-md border border-slate-300 bg-white"
+                  />
+                </div>
                 <div>
                   <label className="block text-[11px] font-medium text-slate-600 mb-1">Banco:</label>
                   <select
@@ -406,7 +513,16 @@ export const ConductoresPlacas: React.FC<ConductoresPlacasProps> = ({
 
               {/* Payment preview */}
               <div className="mt-3 p-2.5 bg-emerald-50/40 border border-emerald-100 rounded-lg text-[11px] space-y-1">
-                <div className="flex items-center gap-1 text-emerald-900 font-semibold">
+                <div className="text-[10px] font-bold uppercase text-emerald-800 flex items-center justify-between">
+                  <span>Persona a pagar:</span>
+                  <span className="font-mono-numbers text-slate-500">
+                    {item.paymentData?.identification || item.idNumber || ''}
+                  </span>
+                </div>
+                <div className="font-bold text-slate-900 uppercase truncate">
+                  {item.paymentData?.accountHolder || item.driverName}
+                </div>
+                <div className="flex items-center gap-1 text-emerald-900 font-semibold pt-0.5">
                   <CreditCard className="w-3 h-3 text-orange-500" />
                   <span>{item.paymentData?.bank || 'Bancolombia'}</span>
                   <span className="text-slate-400">·</span>

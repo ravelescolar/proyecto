@@ -1,13 +1,65 @@
 {
   "entities": {
+    "AdminMember": {
+      "title": "AdminMember",
+      "description": "Registro de usuario administrador autorizado de Transportes Ravel.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "UID de Firebase Auth del administrador.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "description": "Correo electrónico verificado del administrador.",
+          "minLength": 3,
+          "maxLength": 150
+        },
+        "role": {
+          "type": "string",
+          "description": "Rol del miembro en la plataforma.",
+          "enum": ["admin"],
+          "minLength": 1,
+          "maxLength": 20
+        },
+        "addedBy": {
+          "type": "string",
+          "description": "UID del administrador que otorgó el permiso.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp de creación en el servidor."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp de actualización en el servidor."
+        }
+      },
+      "required": [
+        "uid",
+        "email",
+        "role",
+        "addedBy",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
     "AppSettings": {
       "title": "AppSettings",
-      "description": "Configuración general del sistema y consecutivo por usuario para Transportes Ravel.",
+      "description": "Configuración corporativa global y contador de consecutivo único para Transportes Ravel.",
       "type": "object",
       "properties": {
         "ownerId": {
           "type": "string",
-          "description": "UID del usuario propietario de la configuración.",
+          "description": "UID del último usuario o administrador que actualizó la configuración o el consecutivo.",
           "minLength": 1,
           "maxLength": 128,
           "pattern": "^[a-zA-Z0-9_\\-]+$"
@@ -20,7 +72,7 @@
         },
         "nextConsecutive": {
           "type": "number",
-          "description": "Siguiente número consecutivo disponible."
+          "description": "Siguiente número consecutivo global disponible."
         },
         "companyName": {
           "type": "string",
@@ -48,7 +100,7 @@
         },
         "companyEmail": {
           "type": "string",
-          "description": "Correo electrónico corporativo.",
+          "description": "Correo electrónico corporativo (administrador principal).",
           "minLength": 0,
           "maxLength": 150
         },
@@ -216,19 +268,25 @@
     },
     "CuentaDeCobro": {
       "title": "CuentaDeCobro",
-      "description": "Documento principal de cuenta de cobro emitida para Transportes Ravel.",
+      "description": "Documento principal de cuenta de cobro con consecutivo irrepetible emitida para Transportes Ravel.",
       "type": "object",
       "properties": {
         "ownerId": {
           "type": "string",
-          "description": "UID del usuario propietario de la cuenta de cobro.",
+          "description": "UID del usuario creador/propietario de la cuenta de cobro.",
           "minLength": 1,
           "maxLength": 128,
           "pattern": "^[a-zA-Z0-9_\\-]+$"
         },
+        "ownerEmail": {
+          "type": "string",
+          "description": "Correo electrónico de la cuenta que radicó la cuenta de cobro.",
+          "minLength": 0,
+          "maxLength": 150
+        },
         "consecutive": {
           "type": "number",
-          "description": "Número consecutivo de la cuenta."
+          "description": "Número consecutivo único e irrepetible de la cuenta."
         },
         "consecutiveFormatted": {
           "type": "string",
@@ -364,7 +422,7 @@
         },
         "status": {
           "type": "string",
-          "description": "Estado de la cuenta de cobro (anulada es estado terminal).",
+          "description": "Estado de la cuenta de cobro (anulada es estado terminal para usuarios).",
           "enum": ["emitida", "pagada", "anulada"],
           "minLength": 1,
           "maxLength": 20
@@ -382,6 +440,7 @@
       },
       "required": [
         "ownerId",
+        "ownerEmail",
         "consecutive",
         "consecutiveFormatted",
         "date",
@@ -416,7 +475,7 @@
       "properties": {
         "ownerId": {
           "type": "string",
-          "description": "UID del usuario propietario.",
+          "description": "UID del usuario propietario de la cuenta padre.",
           "minLength": 1,
           "maxLength": 128,
           "pattern": "^[a-zA-Z0-9_\\-]+$"
@@ -479,17 +538,21 @@
     }
   },
   "firestore": {
+    "/admins/{adminUid}": {
+      "schema": "AdminMember",
+      "description": "Colección de administradores autorizados (Empresa de Transporte)."
+    },
     "/settings/{userId}": {
       "schema": "AppSettings",
-      "description": "Documento de configuración general del sistema aislado por usuario."
+      "description": "Configuración corporativa global (/settings/global) y contador de consecutivo único."
     },
     "/drivers/{driverId}": {
       "schema": "DriverProfile",
-      "description": "Perfiles de vehículos, placas y conductores registrados por el usuario."
+      "description": "Perfiles de vehículos, placas y conductores registrados."
     },
     "/cuentas/{cuentaId}": {
       "schema": "CuentaDeCobro",
-      "description": "Cuentas de cobro emitidas y gestionadas por el usuario."
+      "description": "Cuentas de cobro emitidas con consecutivo único (cc-{consecutivo})."
     },
     "/cuentas/{cuentaId}/services/{serviceId}": {
       "schema": "ServiceItem",

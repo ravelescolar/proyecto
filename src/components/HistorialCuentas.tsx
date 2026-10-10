@@ -11,10 +11,12 @@ import {
   User,
   Car,
   Filter,
-  RotateCcw
+  RotateCcw,
+  MessageCircle
 } from 'lucide-react';
 import { CuentaDeCobro, CuentaStatus } from '../types';
 import { formatCurrency } from '../utils/numberToWords';
+import { shareCuentaPDFViaWhatsApp } from '../utils/pdfExport';
 
 interface HistorialCuentasProps {
   cuentas: CuentaDeCobro[];
@@ -24,6 +26,7 @@ interface HistorialCuentasProps {
   onDelete: (id: string) => void;
   onStatusChange: (id: string, status: CuentaStatus) => void;
   onNew: () => void;
+  isAdmin?: boolean;
 }
 
 export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
@@ -34,6 +37,7 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
   onDelete,
   onStatusChange,
   onNew,
+  isAdmin = false,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchTarget, setSearchTarget] = useState<'all' | 'driver' | 'plate'>('all');
@@ -68,7 +72,9 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
         (plateQuery.length > 0 && cleanPlateText(c.vehiclePlate).includes(plateQuery)) ||
         c.services.some((s) => plateQuery.length > 0 && cleanPlateText(s.plate).includes(plateQuery));
 
-      const consecutiveMatches = normalizeText(c.consecutiveFormatted).includes(normQuery);
+      const consecutiveMatches =
+        normalizeText(c.consecutiveFormatted).includes(normQuery) ||
+        (c.ownerEmail ? normalizeText(c.ownerEmail).includes(normQuery) : false);
 
       if (searchTarget === 'driver') {
         matchSearch = driverMatches;
@@ -410,11 +416,16 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
                         CC {cuenta.driverId} · Emisión: {cuenta.date}
                         {cuenta.paymentDueDate ? ` · Pago: ${cuenta.paymentDueDate}` : ''}
                       </div>
+                      {isAdmin && cuenta.ownerEmail && (
+                        <div className="text-[10px] text-emerald-800 font-medium mt-0.5">
+                          Subida por: <span className="font-semibold">{cuenta.ownerEmail}</span>
+                        </div>
+                      )}
                     </div>
 
                     <select
                       value={cuenta.status}
-                      disabled={cuenta.status === 'anulada'}
+                      disabled={cuenta.status === 'anulada' && !isAdmin}
                       onChange={(e) => onStatusChange(cuenta.id, e.target.value as CuentaStatus)}
                       className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg border text-center transition-colors shrink-0 ${
                         cuenta.status === 'pagada'
@@ -441,6 +452,16 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
                     </div>
 
                     <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => shareCuentaPDFViaWhatsApp(cuenta)}
+                        title="Exportar y enviar PDF por WhatsApp"
+                        className="min-h-[38px] px-2.5 py-1.5 text-xs font-bold text-white bg-[#25D366] hover:bg-[#1ebe5d] rounded-lg flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5 text-white fill-white/20 shrink-0" />
+                        <span>PDF WhatsApp</span>
+                      </button>
+
                       <button
                         type="button"
                         onClick={() => onView(cuenta)}
@@ -471,11 +492,14 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
 
                       <button
                         type="button"
-                        onClick={() => setCuentaToDelete(cuenta)}
-                        title="Eliminar registro"
-                        className="min-h-[38px] min-w-[38px] flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCuentaToDelete(cuenta);
+                        }}
+                        title="Eliminar cuenta de cobro"
+                        className="min-h-[38px] min-w-[38px] flex items-center justify-center text-rose-600 bg-rose-50/70 hover:bg-rose-600 hover:text-white border border-rose-200 rounded-lg transition-colors cursor-pointer"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-4 h-4 pointer-events-none" />
                       </button>
                     </div>
                   </div>
@@ -531,6 +555,11 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
                         <div className="text-[11px] text-slate-500 font-mono-numbers tabular-nums">
                           CC: {cuenta.driverId}
                         </div>
+                        {isAdmin && cuenta.ownerEmail && (
+                          <div className="text-[10px] text-emerald-700 font-medium truncate max-w-[220px]">
+                            Usuario: {cuenta.ownerEmail}
+                          </div>
+                        )}
                       </td>
 
                       {/* Servicios count and preview */}
@@ -552,7 +581,7 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
                       <td className="py-3 px-3 text-center">
                         <select
                           value={cuenta.status}
-                          disabled={cuenta.status === 'anulada'}
+                          disabled={cuenta.status === 'anulada' && !isAdmin}
                           onChange={(e) => onStatusChange(cuenta.id, e.target.value as CuentaStatus)}
                           className={`text-[11px] font-bold px-2 py-1 rounded-md border text-center transition-colors ${
                             cuenta.status === 'pagada'
@@ -571,6 +600,15 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
                       {/* Actions */}
                       <td className="py-3 px-3 text-center">
                         <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => shareCuentaPDFViaWhatsApp(cuenta)}
+                            title="Exportar y enviar PDF por WhatsApp"
+                            className="p-1.5 text-[#1ebe5d] hover:text-white hover:bg-[#25D366] rounded-md transition-colors cursor-pointer"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                          </button>
+
                           <button
                             onClick={() => onView(cuenta)}
                             title="Ver Documento Formal"
@@ -597,11 +635,14 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
 
                           <button
                             type="button"
-                            onClick={() => setCuentaToDelete(cuenta)}
-                            title="Eliminar registro"
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCuentaToDelete(cuenta);
+                            }}
+                            title="Eliminar cuenta de cobro"
+                            className="p-1.5 text-rose-600 bg-rose-50/60 hover:text-white hover:bg-rose-600 border border-rose-200/80 rounded-md transition-colors cursor-pointer"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4 pointer-events-none" />
                           </button>
                         </div>
                       </td>

@@ -11,7 +11,7 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 2. HARDENED GLOBAL PRIMITIVES
+    // 2. HARDENED GLOBAL PRIMITIVES & RBAC (Admin vs. Standard User)
     // =========================================================================
     function isValidId(id) {
       return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
@@ -33,6 +33,15 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.email_verified == true;
     }
 
+    // Administrator role: Verified primary company account (ravelescolar@gmail.com)
+    // or explicitly registered in `/admins/{uid}`
+    function isAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'ravelescolar@gmail.com'
+        || exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
     function isValidAccountType(val) {
       return val is string
         && val.size() >= 1
@@ -50,6 +59,33 @@ service cloud.firestore {
     // =========================================================================
     // 3. VALIDATION BLUEPRINTS (Anti-Update-Gap Helpers)
     // =========================================================================
+
+    function isValidAdminMember(data, adminUid) {
+      return data.keys().hasAll([
+          'uid',
+          'email',
+          'role',
+          'addedBy',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid',
+          'email',
+          'role',
+          'addedBy',
+          'createdAt',
+          'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.uid == adminUid
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 150
+        && data.role is string && data.role.size() == 5 && data.role == 'admin'
+        && isValidId(data.addedBy)
+        && data.addedBy == request.auth.uid
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
 
     function isValidAppSettings(data, userId) {
       return data.keys().hasAll([
@@ -79,12 +115,13 @@ service cloud.firestore {
           'defaultCity',
           'defaultConcept',
           'companyLogoUrl',
+          'companySlogan',
           'createdAt',
           'updatedAt'
         ])
         && isValidId(data.ownerId)
         && data.ownerId == request.auth.uid
-        && data.ownerId == userId
+        && (userId == 'global' || data.ownerId == userId)
         && data.prefix is string && data.prefix.size() >= 1 && data.prefix.size() <= 10
         && (data.nextConsecutive is int || data.nextConsecutive is float) && data.nextConsecutive >= 1 && data.nextConsecutive <= 9999999
         && data.companyName is string && data.companyName.size() >= 1 && data.companyName.size() <= 150
@@ -94,8 +131,9 @@ service cloud.firestore {
         && data.companyEmail is string && data.companyEmail.size() <= 150
         && data.defaultCity is string && data.defaultCity.size() >= 1 && data.defaultCity.size() <= 100
         && data.defaultConcept is string && data.defaultConcept.size() >= 1 && data.defaultConcept.size() <= 1000
-        && data.companyLogoUrl is string && data.companyLogoUrl.size() <= 500000
-        && data.createdAt is timestamp
+        && data.companyLogoUrl is string && data.companyLogoUrl.size() <= 950000
+        && (!('companySlogan' in data) || (data.companySlogan is string && data.companySlogan.size() <= 300))
+        && (data.createdAt is timestamp || (data.createdAt is string && data.createdAt.size() <= 50))
         && data.updatedAt is timestamp;
     }
 
@@ -135,7 +173,6 @@ service cloud.firestore {
           'updatedAt'
         ])
         && isValidId(data.ownerId)
-        && data.ownerId == request.auth.uid
         && data.plate is string && data.plate.size() >= 1 && data.plate.size() <= 20
         && data.driverName is string && data.driverName.size() >= 1 && data.driverName.size() <= 150
         && data.idNumber is string && data.idNumber.size() <= 50
@@ -185,6 +222,7 @@ service cloud.firestore {
         ])
         && data.keys().hasOnly([
           'ownerId',
+          'ownerEmail',
           'consecutive',
           'consecutiveFormatted',
           'date',
@@ -212,7 +250,7 @@ service cloud.firestore {
           'updatedAt'
         ])
         && isValidId(data.ownerId)
-        && data.ownerId == request.auth.uid
+        && (!('ownerEmail' in data) || (data.ownerEmail is string && data.ownerEmail.size() <= 150))
         && (data.consecutive is int || data.consecutive is float) && data.consecutive >= 1 && data.consecutive <= 9999999
         && data.consecutiveFormatted is string && data.consecutiveFormatted.size() >= 1 && data.consecutiveFormatted.size() <= 30
         && data.date is string && data.date.size() >= 1 && data.date.size() <= 30
@@ -264,7 +302,6 @@ service cloud.firestore {
           'updatedAt'
         ])
         && isValidId(data.ownerId)
-        && data.ownerId == request.auth.uid
         && isValidId(data.cuentaId)
         && data.cuentaId == cuentaId
         && (data.orderIndex is int || data.orderIndex is float) && data.orderIndex >= 0 && data.orderIndex <= 1000
@@ -277,16 +314,20 @@ service cloud.firestore {
     }
 
     // Master Gate Helpers for Subcollection `/cuentas/{cuentaId}/services/{serviceId}`
-    function isParentCuentaOwner(cuentaId) {
+    function isParentCuentaAuthorized(cuentaId) {
       return exists(/databases/$(database)/documents/cuentas/$(cuentaId))
-        && get(/databases/$(database)/documents/cuentas/$(cuentaId)).data.ownerId == request.auth.uid;
+        && (
+          get(/databases/$(database)/documents/cuentas/$(cuentaId)).data.ownerId == request.auth.uid
+          || isAdmin()
+        );
     }
 
     function isParentCuentaValidAfter(parentData) {
-      return parentData.ownerId == request.auth.uid && parentData.status != 'anulada';
+      return (parentData.ownerId == request.auth.uid && parentData.status != 'anulada')
+        || isAdmin();
     }
 
-    function isParentCuentaOwnerAndActiveAfter(cuentaId) {
+    function isParentCuentaAuthorizedAndActiveAfter(cuentaId) {
       return existsAfter(/databases/$(database)/documents/cuentas/$(cuentaId))
         && isParentCuentaValidAfter(getAfter(/databases/$(database)/documents/cuentas/$(cuentaId)).data);
     }
@@ -295,13 +336,42 @@ service cloud.firestore {
     // 4. COLLECTION RULES
     // =========================================================================
 
+    match /admins/{adminUid} {
+      allow get: if isSignedIn() && isValidId(adminUid) && (adminUid == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (existing().uid == request.auth.uid || isAdmin());
+
+      allow create: if isVerifiedUser()
+        && isValidId(adminUid)
+        && isValidAdminMember(incoming(), adminUid)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isAdmin();
+
+      allow update: if (
+        isVerifiedUser()
+        && isValidId(adminUid)
+        && isValidAdminMember(incoming(), adminUid)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'updatedAt'])
+        && isAdmin()
+      );
+
+      allow delete: if isVerifiedUser() && isValidId(adminUid) && isAdmin();
+    }
+
     match /settings/{userId} {
-      allow get: if isSignedIn() && isValidId(userId) && userId == request.auth.uid && existing().ownerId == request.auth.uid;
-      allow list: if isSignedIn() && existing().ownerId == request.auth.uid;
+      allow get: if isSignedIn()
+        && isValidId(userId)
+        && (userId == 'global' || userId == request.auth.uid || isAdmin());
+
+      allow list: if isSignedIn()
+        && (existing().ownerId == request.auth.uid || isAdmin() || existing().companyNit == '900.388.163-2');
 
       allow create: if isVerifiedUser()
         && isValidId(userId)
-        && userId == request.auth.uid
+        && (userId == 'global' || userId == request.auth.uid || isAdmin())
         && isValidAppSettings(incoming(), userId)
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
@@ -309,43 +379,87 @@ service cloud.firestore {
       allow update: if (
         isVerifiedUser()
         && isValidId(userId)
-        && userId == request.auth.uid
         && isValidAppSettings(incoming(), userId)
-        && existing().ownerId == request.auth.uid
-        && incoming().ownerId == existing().ownerId
-        && incoming().createdAt == existing().createdAt
+        && (isAdmin() || !('createdAt' in existing()) || incoming().createdAt == existing().createdAt)
         && incoming().updatedAt == request.time
         && (
-          // Action: Increment Consecutive Only
-          incoming().diff(existing()).affectedKeys().hasOnly(['nextConsecutive', 'updatedAt'])
+          // Tier 1: Admin can update all corporate settings and consecutive
+          (
+            isAdmin()
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'ownerId',
+              'prefix',
+              'nextConsecutive',
+              'companyName',
+              'companyNit',
+              'companyAddress',
+              'companyPhone',
+              'companyEmail',
+              'defaultCity',
+              'defaultConcept',
+              'companyLogoUrl',
+              'companySlogan',
+              'createdAt',
+              'updatedAt'
+            ])
+          )
           ||
-          // Action: Update Full General Settings
-          incoming().diff(existing()).affectedKeys().hasOnly([
-            'prefix',
-            'nextConsecutive',
-            'companyName',
-            'companyNit',
-            'companyAddress',
-            'companyPhone',
-            'companyEmail',
-            'defaultCity',
-            'defaultConcept',
-            'companyLogoUrl',
-            'updatedAt'
-          ])
+          // Tier 2: Standard User can increment or sync nextConsecutive on /settings/global
+          (
+            userId == 'global'
+            && incoming().nextConsecutive >= existing().nextConsecutive
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'ownerId',
+              'prefix',
+              'nextConsecutive',
+              'companyName',
+              'companyNit',
+              'companyAddress',
+              'companyPhone',
+              'companyEmail',
+              'defaultCity',
+              'defaultConcept',
+              'companyLogoUrl',
+              'companySlogan',
+              'createdAt',
+              'updatedAt'
+            ])
+          )
+          ||
+          // Tier 2: Standard User updating their own legacy user settings doc
+          (
+            userId == request.auth.uid
+            && existing().ownerId == request.auth.uid
+            && incoming().ownerId == existing().ownerId
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'prefix',
+              'nextConsecutive',
+              'companyName',
+              'companyNit',
+              'companyAddress',
+              'companyPhone',
+              'companyEmail',
+              'defaultCity',
+              'defaultConcept',
+              'companyLogoUrl',
+              'companySlogan',
+              'updatedAt'
+            ])
+          )
         )
       );
 
-      allow delete: if isVerifiedUser() && isValidId(userId) && userId == request.auth.uid && existing().ownerId == request.auth.uid;
+      allow delete: if isVerifiedUser() && isValidId(userId) && isAdmin();
     }
 
     match /drivers/{driverId} {
-      allow get: if isSignedIn() && isValidId(driverId) && existing().ownerId == request.auth.uid;
-      allow list: if isSignedIn() && existing().ownerId == request.auth.uid;
+      allow get: if isSignedIn() && isValidId(driverId) && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isAdmin());
 
       allow create: if isVerifiedUser()
         && isValidId(driverId)
         && isValidDriverProfile(incoming())
+        && incoming().ownerId == request.auth.uid
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
 
@@ -353,7 +467,7 @@ service cloud.firestore {
         isVerifiedUser()
         && isValidId(driverId)
         && isValidDriverProfile(incoming())
-        && existing().ownerId == request.auth.uid
+        && (existing().ownerId == request.auth.uid || isAdmin())
         && incoming().ownerId == existing().ownerId
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
@@ -377,16 +491,23 @@ service cloud.firestore {
         )
       );
 
-      allow delete: if isVerifiedUser() && isValidId(driverId) && existing().ownerId == request.auth.uid;
+      allow delete: if isVerifiedUser()
+        && isValidId(driverId)
+        && (existing().ownerId == request.auth.uid || isAdmin());
     }
 
     match /cuentas/{cuentaId} {
-      allow get: if isSignedIn() && isValidId(cuentaId) && existing().ownerId == request.auth.uid;
-      allow list: if isSignedIn() && existing().ownerId == request.auth.uid;
+      allow get: if isSignedIn()
+        && isValidId(cuentaId)
+        && (existing().ownerId == request.auth.uid || isAdmin());
+
+      allow list: if isSignedIn()
+        && (existing().ownerId == request.auth.uid || isAdmin());
 
       allow create: if isVerifiedUser()
         && isValidId(cuentaId)
         && isValidCuentaDeCobro(incoming())
+        && incoming().ownerId == request.auth.uid
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
 
@@ -394,17 +515,19 @@ service cloud.firestore {
         isVerifiedUser()
         && isValidId(cuentaId)
         && isValidCuentaDeCobro(incoming())
-        && existing().ownerId == request.auth.uid
+        && (existing().ownerId == request.auth.uid || isAdmin())
         && incoming().ownerId == existing().ownerId
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
-        && existing().status != 'anulada'
+        && (existing().status != 'anulada' || isAdmin())
+        && (incoming().consecutive == existing().consecutive || isAdmin())
         && (
           // Action 1: Status Transition Only (emitida <-> pagada, or -> anulada)
           incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
           ||
-          // Action 2: Full Document Edit (while not in terminal state 'anulada')
+          // Action 2: Full Document Edit
           incoming().diff(existing()).affectedKeys().hasOnly([
+            'ownerEmail',
             'consecutive',
             'consecutiveFormatted',
             'date',
@@ -433,32 +556,35 @@ service cloud.firestore {
         )
       );
 
-      allow delete: if isVerifiedUser() && isValidId(cuentaId) && existing().ownerId == request.auth.uid;
+      allow delete: if isVerifiedUser()
+        && isValidId(cuentaId)
+        && (existing().ownerId == request.auth.uid || isAdmin());
 
       match /services/{serviceId} {
         allow get: if isSignedIn()
           && isValidId(cuentaId)
           && isValidId(serviceId)
-          && existing().ownerId == request.auth.uid
-          && isParentCuentaOwner(cuentaId);
+          && (existing().ownerId == request.auth.uid || isAdmin())
+          && isParentCuentaAuthorized(cuentaId);
 
         allow list: if isSignedIn()
-          && existing().ownerId == request.auth.uid;
+          && (existing().ownerId == request.auth.uid || isAdmin());
 
         allow create: if isVerifiedUser()
           && isValidId(cuentaId)
           && isValidId(serviceId)
           && isValidServiceItem(incoming(), cuentaId)
+          && (incoming().ownerId == request.auth.uid || isAdmin())
           && incoming().createdAt == request.time
           && incoming().updatedAt == request.time
-          && isParentCuentaOwnerAndActiveAfter(cuentaId);
+          && isParentCuentaAuthorizedAndActiveAfter(cuentaId);
 
         allow update: if (
           isVerifiedUser()
           && isValidId(cuentaId)
           && isValidId(serviceId)
           && isValidServiceItem(incoming(), cuentaId)
-          && existing().ownerId == request.auth.uid
+          && (existing().ownerId == request.auth.uid || isAdmin())
           && incoming().ownerId == existing().ownerId
           && incoming().cuentaId == existing().cuentaId
           && incoming().createdAt == existing().createdAt
@@ -471,14 +597,14 @@ service cloud.firestore {
             'value',
             'updatedAt'
           ])
-          && isParentCuentaOwnerAndActiveAfter(cuentaId)
+          && isParentCuentaAuthorizedAndActiveAfter(cuentaId)
         );
 
         allow delete: if isVerifiedUser()
           && isValidId(cuentaId)
           && isValidId(serviceId)
-          && existing().ownerId == request.auth.uid
-          && isParentCuentaOwner(cuentaId);
+          && (existing().ownerId == request.auth.uid || isAdmin())
+          && isParentCuentaAuthorized(cuentaId);
       }
     }
   }

@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   setDoc,
   updateDoc,
@@ -13,7 +14,14 @@ import {
   Timestamp,
   Unsubscribe,
 } from 'firebase/firestore';
-import { AppSettings, CuentaDeCobro, DriverProfile, PaymentData, ServiceItem } from '../types';
+import {
+  AdminMember,
+  AppSettings,
+  CuentaDeCobro,
+  DriverProfile,
+  PaymentData,
+  ServiceItem,
+} from '../types';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 
 const LEGACY_STORAGE_KEYS = {
@@ -21,6 +29,9 @@ const LEGACY_STORAGE_KEYS = {
   CUENTAS: 'ravel_cuentas_list_v1',
   DRIVERS: 'ravel_driver_profiles_v1',
 };
+
+export const PRIMARY_ADMIN_EMAIL = 'ravelescolar@gmail.com';
+export const GLOBAL_SETTINGS_DOC_ID = 'global';
 
 // Validation Synchronicity Constants (matching firebase-blueprint.json & firestore.rules verbatim)
 export const VALIDATION_LIMITS = {
@@ -38,7 +49,7 @@ export const VALIDATION_LIMITS = {
   COMPANY_PHONE_MAX_LEN: 50,
   COMPANY_EMAIL_MAX_LEN: 150,
   CONCEPT_MAX_LEN: 1000,
-  LOGO_URL_MAX_LEN: 500000,
+  LOGO_URL_MAX_LEN: 950000,
   SIGNATURE_URL_MAX_LEN: 500000,
   DRIVER_NAME_MAX_LEN: 150,
   DRIVER_ID_MAX_LEN: 50,
@@ -117,13 +128,13 @@ function timestampToIso(ts: unknown, fallback?: string): string {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   prefix: 'CC-',
-  nextConsecutive: 101,
+  nextConsecutive: 1,
   companyName: 'TRANSPORTES RAVEL',
   companyNit: '900.388.163-2',
-  companyAddress: 'Cra. 53 #76-120, Barranquilla, Atlántico',
+  companyAddress: 'Medellín, Antioquia',
   companyPhone: '(+57) 300 812 4590',
   companyEmail: 'ravelescolar@gmail.com',
-  defaultCity: 'Barranquilla',
+  defaultCity: 'Medellín',
   defaultConcept:
     'Por concepto de servicio de transporte terrestre de pasajeros prestado durante el período correspondiente, según la relación detallada de servicios adjunta.',
 };
@@ -187,7 +198,7 @@ export const INITIAL_DRIVERS: DriverProfile[] = [
     },
     frequentClients: [
       'Colegio Real Royal School - Ruta 4',
-      'Servicio Especial de Pasajeros Barranquilla - Cartagena',
+      'Servicio Especial de Pasajeros Medellín - Rionegro',
       'Clínica Portoazul - Transporte de Personal',
     ],
     totalAccountsGenerated: 5,
@@ -197,12 +208,12 @@ export const INITIAL_DRIVERS: DriverProfile[] = [
 
 export const INITIAL_CUENTAS: CuentaDeCobro[] = [
   {
-    id: 'cc-0100',
-    consecutive: 100,
-    consecutiveFormatted: 'CC-0100',
+    id: 'cc-1',
+    consecutive: 1,
+    consecutiveFormatted: 'CC-0001',
     date: '2026-09-22',
     paymentDueDate: '2026-09-28',
-    city: 'Barranquilla',
+    city: 'Medellín',
     companyName: 'TRANSPORTES RAVEL',
     companyNit: '900.388.163-2',
     driverName: 'CARLOS ALBERTO MARTÍNEZ R.',
@@ -253,9 +264,13 @@ export const INITIAL_CUENTAS: CuentaDeCobro[] = [
 let cachedSettings: AppSettings = { ...DEFAULT_SETTINGS };
 let cachedDrivers: DriverProfile[] = [];
 let cachedCuentas: CuentaDeCobro[] = [];
-let knownSettingExists = false;
+let cachedAdmins: AdminMember[] = [];
+let cachedIsAdmin = false;
+let knownGlobalSettingExists = false;
 const knownDriverIds = new Set<string>();
 const knownCuentaIds = new Set<string>();
+const deletedDriverIds = new Set<string>();
+const deletedCuentaIds = new Set<string>();
 const knownServiceIdsByCuenta = new Map<string, Set<string>>();
 
 let activeListeners: Unsubscribe[] = [];
@@ -300,18 +315,41 @@ export function loadSettings(): AppSettings {
 }
 
 export function loadDriverProfiles(): DriverProfile[] {
+  const uid = auth.currentUser?.uid;
+  if (!cachedIsAdmin && uid) {
+    return cachedDrivers.filter((d) => d.ownerId === uid);
+  }
   return cachedDrivers;
 }
 
 export function loadCuentas(): CuentaDeCobro[] {
+  const uid = auth.currentUser?.uid;
+  if (!cachedIsAdmin && uid) {
+    return cachedCuentas.filter((c) => c.ownerId === uid);
+  }
   return cachedCuentas;
+}
+
+export function loadAdmins(): AdminMember[] {
+  return cachedAdmins;
+}
+
+export function isCurrentUserAdmin(): boolean {
+  return cachedIsAdmin;
 }
 
 export function getNextConsecutive(): { number: number; formatted: string } {
   const settings = loadSettings();
+  const baseNext = Math.max(1, Number(settings.nextConsecutive) || 1);
+  // Find the first available consecutive >= baseNext that isn't already used by an existing cuenta
+  const used = new Set(cachedCuentas.map((c) => c.consecutive));
+  let candidate = baseNext;
+  while (used.has(candidate)) {
+    candidate += 1;
+  }
   return {
-    number: settings.nextConsecutive,
-    formatted: formatConsecutive(settings.prefix, settings.nextConsecutive),
+    number: candidate,
+    formatted: formatConsecutive(settings.prefix, candidate),
   };
 }
 
@@ -320,8 +358,13 @@ export function findDriverByPlate(plateQuery: string): DriverProfile | undefined
   const cleanQuery = plateQuery.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (!cleanQuery) return undefined;
 
+  const uid = auth.currentUser?.uid;
   const profiles = loadDriverProfiles();
-  return profiles.find((p) => p.plate.replace(/[^A-Z0-9]/g, '') === cleanQuery);
+  return profiles.find(
+    (p) =>
+      p.plate.replace(/[^A-Z0-9]/g, '') === cleanQuery &&
+      (cachedIsAdmin || !uid || p.ownerId === uid)
+  );
 }
 
 // ============================================================================
@@ -329,6 +372,14 @@ export function findDriverByPlate(plateQuery: string): DriverProfile | undefined
 // ============================================================================
 
 function buildSettingsFirestorePayload(uid: string, s: AppSettings) {
+  const rawLogo = (s.companyLogoUrl || '').trim();
+  // Only store valid complete data URLs or HTTP URLs that fit within the limit; never truncate a base64 image in half
+  const validLogo =
+    rawLogo.length <= VALIDATION_LIMITS.LOGO_URL_MAX_LEN &&
+    (rawLogo.startsWith('data:image/') || rawLogo.startsWith('http'))
+      ? rawLogo
+      : '';
+
   return {
     ownerId: uid,
     prefix: clampString(s.prefix, VALIDATION_LIMITS.PREFIX_MAX_LEN, 'CC-'),
@@ -337,7 +388,7 @@ function buildSettingsFirestorePayload(uid: string, s: AppSettings) {
         s.nextConsecutive,
         VALIDATION_LIMITS.CONSECUTIVE_MIN,
         VALIDATION_LIMITS.CONSECUTIVE_MAX,
-        101
+        1
       )
     ),
     companyName: clampString(
@@ -363,7 +414,7 @@ function buildSettingsFirestorePayload(uid: string, s: AppSettings) {
       VALIDATION_LIMITS.CONCEPT_MAX_LEN,
       DEFAULT_SETTINGS.defaultConcept
     ),
-    companyLogoUrl: clampString(s.companyLogoUrl, VALIDATION_LIMITS.LOGO_URL_MAX_LEN, ''),
+    companyLogoUrl: validLogo,
   };
 }
 
@@ -374,7 +425,7 @@ function buildDriverFirestorePayload(uid: string, d: DriverProfile) {
     .slice(0, VALIDATION_LIMITS.FREQUENT_CLIENTS_MAX_ITEMS);
 
   return {
-    ownerId: uid,
+    ownerId: d.ownerId || uid,
     plate: clampString(d.plate.toUpperCase(), VALIDATION_LIMITS.PLATE_MAX_LEN, 'SIN-PLACA'),
     driverName: clampString(d.driverName, VALIDATION_LIMITS.DRIVER_NAME_MAX_LEN, 'CONDUCTOR'),
     idNumber: clampString(d.idNumber, VALIDATION_LIMITS.DRIVER_ID_MAX_LEN, ''),
@@ -397,9 +448,7 @@ function buildDriverFirestorePayload(uid: string, d: DriverProfile) {
       ''
     ),
     frequentClients: cleanClients,
-    totalAccountsGenerated: Math.round(
-      clampNumber(d.totalAccountsGenerated, 0, 999999, 1)
-    ),
+    totalAccountsGenerated: Math.round(clampNumber(d.totalAccountsGenerated, 0, 999999, 1)),
     lastUsedAt: clampString(
       d.lastUsedAt || new Date().toISOString(),
       VALIDATION_LIMITS.DATE_MAX_LEN,
@@ -408,9 +457,15 @@ function buildDriverFirestorePayload(uid: string, d: DriverProfile) {
   };
 }
 
-function buildCuentaFirestorePayload(uid: string, c: CuentaDeCobro) {
+function buildCuentaFirestorePayload(uid: string, email: string | null | undefined, c: CuentaDeCobro) {
+  const ownerEmail = clampString(
+    c.ownerEmail || email || '',
+    VALIDATION_LIMITS.COMPANY_EMAIL_MAX_LEN,
+    ''
+  );
   return {
-    ownerId: uid,
+    ownerId: c.ownerId || uid,
+    ...(ownerEmail ? { ownerEmail } : {}),
     consecutive: Math.round(
       clampNumber(
         c.consecutive,
@@ -434,7 +489,7 @@ function buildCuentaFirestorePayload(uid: string, c: CuentaDeCobro) {
       VALIDATION_LIMITS.DATE_MAX_LEN,
       new Date().toISOString().split('T')[0]
     ),
-    city: clampString(c.city, VALIDATION_LIMITS.CITY_MAX_LEN, 'Barranquilla'),
+    city: clampString(c.city, VALIDATION_LIMITS.CITY_MAX_LEN, 'Medellín'),
     companyName: clampString(
       c.companyName,
       VALIDATION_LIMITS.COMPANY_NAME_MAX_LEN,
@@ -489,14 +544,14 @@ function buildCuentaFirestorePayload(uid: string, c: CuentaDeCobro) {
 }
 
 function buildServiceItemFirestorePayload(
-  uid: string,
+  ownerUid: string,
   cuentaId: string,
   s: ServiceItem,
   orderIndex: number,
   defaultPlate: string
 ) {
   return {
-    ownerId: uid,
+    ownerId: ownerUid,
     cuentaId,
     orderIndex: Math.round(clampNumber(orderIndex, 0, 1000, 0)),
     date: clampString(
@@ -523,108 +578,153 @@ export function stopFirebaseSync(): void {
   activeListeners = [];
   serviceListenersByCuenta.forEach((unsub) => unsub());
   serviceListenersByCuenta.clear();
-  knownSettingExists = false;
+  knownGlobalSettingExists = false;
+  cachedIsAdmin = false;
+  cachedAdmins = [];
+  cachedDrivers = [];
+  cachedCuentas = [];
   knownDriverIds.clear();
   knownCuentaIds.clear();
+  deletedDriverIds.clear();
+  deletedCuentaIds.clear();
   knownServiceIdsByCuenta.clear();
 }
 
-async function seedOrMigrateInitialUserData(uid: string): Promise<void> {
-  // Use where('ownerId', '==', uid) queries so we NEVER trigger allow get on a non-existent doc!
-  let settingsSnap;
-  let driversSnap;
-  let cuentasSnap;
-
+async function resolveAdminRole(uid: string, email: string | null | undefined): Promise<boolean> {
+  if (email && email.toLowerCase().trim() === PRIMARY_ADMIN_EMAIL) {
+    return true;
+  }
   try {
-    [settingsSnap, driversSnap, cuentasSnap] = await Promise.all([
-      getDocs(query(collection(db, 'settings'), where('ownerId', '==', uid))),
-      getDocs(query(collection(db, 'drivers'), where('ownerId', '==', uid))),
-      getDocs(query(collection(db, 'cuentas'), where('ownerId', '==', uid))),
-    ]);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, 'settings/drivers/cuentas');
-  }
-
-  if (!settingsSnap.empty) {
-    knownSettingExists = true;
-  }
-  driversSnap.forEach((d) => knownDriverIds.add(d.id));
-  cuentasSnap.forEach((c) => knownCuentaIds.add(c.id));
-
-  // If user already has any data in Firestore, only ensure settings/{uid} exists if missing
-  if (!settingsSnap.empty || !driversSnap.empty || !cuentasSnap.empty) {
-    if (settingsSnap.empty) {
-      let maxConsecutive = 100;
-      cuentasSnap.forEach((c) => {
-        const num = Number(c.data().consecutive) || 100;
-        if (num > maxConsecutive) maxConsecutive = num;
-      });
-      const initialSettingsPayload = buildSettingsFirestorePayload(uid, {
-        ...DEFAULT_SETTINGS,
-        nextConsecutive: maxConsecutive + 1,
-      });
-      try {
-        await setDoc(doc(db, 'settings', uid), {
-          ...initialSettingsPayload,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-        knownSettingExists = true;
-      } catch (error) {
-        handleFirestoreError(error, OperationType.CREATE, `settings/${uid}`);
-      }
-    }
-    return;
-  }
-
-  // Brand-new account in Firestore: migrate from legacy localStorage if present, or seed defaults
-  let initialSettings: AppSettings = { ...DEFAULT_SETTINGS };
-  let initialDrivers: DriverProfile[] = INITIAL_DRIVERS.map((d, idx) => ({
-    ...d,
-    id: sanitizeId(`${uid.slice(0, 8)}-drv-${idx + 1}`, 'drv'),
-  }));
-  let initialCuentas: CuentaDeCobro[] = INITIAL_CUENTAS.map((c, idx) => ({
-    ...c,
-    id: sanitizeId(`${uid.slice(0, 8)}-cc-${100 + idx}`, 'cc'),
-  }));
-
-  try {
-    const rawSettings = localStorage.getItem(LEGACY_STORAGE_KEYS.SETTINGS);
-    if (rawSettings) {
-      initialSettings = { ...DEFAULT_SETTINGS, ...JSON.parse(rawSettings) };
-    }
-    const rawDrivers = localStorage.getItem(LEGACY_STORAGE_KEYS.DRIVERS);
-    if (rawDrivers) {
-      const parsedDrivers = JSON.parse(rawDrivers);
-      if (Array.isArray(parsedDrivers) && parsedDrivers.length > 0) {
-        initialDrivers = parsedDrivers.map((d: DriverProfile, idx: number) => ({
-          ...d,
-          id: sanitizeId(`${uid.slice(0, 8)}-${d.id || `drv-${idx + 1}`}`, 'drv'),
-        }));
-      }
-    }
-    const rawCuentas = localStorage.getItem(LEGACY_STORAGE_KEYS.CUENTAS);
-    if (rawCuentas) {
-      const parsedCuentas = JSON.parse(rawCuentas);
-      if (Array.isArray(parsedCuentas) && parsedCuentas.length > 0) {
-        initialCuentas = parsedCuentas.map((c: CuentaDeCobro, idx: number) => ({
-          ...c,
-          id: sanitizeId(`${uid.slice(0, 8)}-${c.id || `cc-${idx + 1}`}`, 'cc'),
-        }));
-      }
-    }
+    const adminSnap = await getDocs(query(collection(db, 'admins'), where('uid', '==', uid)));
+    return !adminSnap.empty;
   } catch {
-    // Ignore legacy localStorage parse errors
+    return false;
   }
+}
+
+async function ensureGlobalSettingsInitialized(uid: string, isAdmin: boolean): Promise<void> {
+  // Query settings where companyNit == '900.388.163-2' or ownerId == uid to find existing settings safely via allow list
+  try {
+    const [globalSnap, userSettingsSnap, cuentasSnap] = await Promise.all([
+      getDocs(query(collection(db, 'settings'), where('companyNit', '==', '900.388.163-2'))),
+      getDocs(query(collection(db, 'settings'), where('ownerId', '==', uid))),
+      getDocs(
+        isAdmin
+          ? collection(db, 'cuentas')
+          : query(collection(db, 'cuentas'), where('ownerId', '==', uid))
+      ),
+    ]);
+
+    const hasGlobalDoc = globalSnap.docs.some((d) => d.id === GLOBAL_SETTINGS_DOC_ID);
+    if (hasGlobalDoc) {
+      knownGlobalSettingExists = true;
+      // If no cuentas exist at all or the legacy default (101) was still set without a 100-series cuenta, reset global nextConsecutive to 1
+      const globalDocSnap = globalSnap.docs.find((d) => d.id === GLOBAL_SETTINGS_DOC_ID);
+      if (globalDocSnap) {
+        const gData = globalDocSnap.data();
+        const currentNext = Number(gData.nextConsecutive) || 1;
+        const hasHighCuentas = cuentasSnap.docs.some((c) => (Number(c.data().consecutive) || 0) >= 100);
+        if (currentNext >= 101 && !hasHighCuentas) {
+          const maxExistingConsecutive = cuentasSnap.docs.reduce(
+            (max, c) => Math.max(max, Number(c.data().consecutive) || 0),
+            0
+          );
+          const targetNext = Math.max(1, maxExistingConsecutive + 1);
+          try {
+            await updateDoc(doc(db, 'settings', GLOBAL_SETTINGS_DOC_ID), {
+              nextConsecutive: targetNext,
+              updatedAt: serverTimestamp(),
+            });
+          } catch {
+            // Ignore if standard user cannot lower nextConsecutive
+          }
+        }
+      }
+    }
+
+    cuentasSnap.forEach((c) => knownCuentaIds.add(c.id));
+
+    if (!hasGlobalDoc) {
+      let maxNextConsecutive = 1;
+      let baseSettings: AppSettings = { ...DEFAULT_SETTINGS, nextConsecutive: 1 };
+
+      if (!userSettingsSnap.empty) {
+        const legacyData = userSettingsSnap.docs[0].data();
+        baseSettings = {
+          prefix: legacyData.prefix || DEFAULT_SETTINGS.prefix,
+          nextConsecutive: 1,
+          companyName: legacyData.companyName || DEFAULT_SETTINGS.companyName,
+          companyNit: legacyData.companyNit || DEFAULT_SETTINGS.companyNit,
+          companyAddress: legacyData.companyAddress ?? DEFAULT_SETTINGS.companyAddress,
+          companyPhone: legacyData.companyPhone ?? DEFAULT_SETTINGS.companyPhone,
+          companyEmail: legacyData.companyEmail ?? DEFAULT_SETTINGS.companyEmail,
+          defaultCity:
+            !legacyData.defaultCity || legacyData.defaultCity === 'Barranquilla'
+              ? DEFAULT_SETTINGS.defaultCity
+              : legacyData.defaultCity,
+          defaultConcept: legacyData.defaultConcept || DEFAULT_SETTINGS.defaultConcept,
+          companyLogoUrl: legacyData.companyLogoUrl || undefined,
+        };
+      }
+
+      cuentasSnap.forEach((c) => {
+        const num = Number(c.data().consecutive) || 0;
+        if (num < 100 && num + 1 > maxNextConsecutive) {
+          maxNextConsecutive = num + 1;
+        }
+      });
+
+      const payload = buildSettingsFirestorePayload(uid, {
+        ...baseSettings,
+        nextConsecutive: maxNextConsecutive,
+      });
+
+      await setDoc(doc(db, 'settings', GLOBAL_SETTINGS_DOC_ID), {
+        ...payload,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      knownGlobalSettingExists = true;
+    }
+  } catch (error) {
+    console.warn('Global settings check notice:', error);
+  }
+}
+
+async function seedInitialAdminDataIfNeeded(
+  uid: string,
+  email: string | null | undefined,
+  isAdmin: boolean
+): Promise<void> {
+  await ensureGlobalSettingsInitialized(uid, isAdmin);
+
+  // Only seed example drivers/cuentas if the user is an Admin, has never seeded before, and the database is completely empty
+  if (!isAdmin) return;
 
   try {
+    const [settingsSnap, driversSnap, cuentasSnap] = await Promise.all([
+      getDocs(collection(db, 'settings')),
+      getDocs(collection(db, 'drivers')),
+      getDocs(collection(db, 'cuentas')),
+    ]);
+
+    driversSnap.forEach((d) => knownDriverIds.add(d.id));
+    cuentasSnap.forEach((c) => knownCuentaIds.add(c.id));
+
+    // If settings already existed or any drivers/cuentas exist, do NOT re-seed initial sample cuentas
+    if (settingsSnap.size > 1 || !driversSnap.empty || !cuentasSnap.empty) {
+      return;
+    }
+
     const batch = writeBatch(db);
-    const settingsPayload = buildSettingsFirestorePayload(uid, initialSettings);
-    batch.set(doc(db, 'settings', uid), {
-      ...settingsPayload,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    const initialDrivers: DriverProfile[] = INITIAL_DRIVERS.map((d, idx) => ({
+      ...d,
+      id: sanitizeId(`${uid.slice(0, 8)}-drv-${idx + 1}`, 'drv'),
+    }));
+    const initialCuentas: CuentaDeCobro[] = INITIAL_CUENTAS.map((c) => ({
+      ...c,
+      id: `cc-${c.consecutive}`,
+    }));
 
     for (const drv of initialDrivers) {
       const drvId = sanitizeId(drv.id, 'drv');
@@ -638,8 +738,8 @@ async function seedOrMigrateInitialUserData(uid: string): Promise<void> {
     }
 
     for (const cta of initialCuentas) {
-      const ctaId = sanitizeId(cta.id, 'cc');
-      const ctaPayload = buildCuentaFirestorePayload(uid, { ...cta, id: ctaId });
+      const ctaId = sanitizeId(`cc-${cta.consecutive}`, 'cc');
+      const ctaPayload = buildCuentaFirestorePayload(uid, email, { ...cta, id: ctaId });
       batch.set(doc(db, 'cuentas', ctaId), {
         ...ctaPayload,
         createdAt: serverTimestamp(),
@@ -669,7 +769,6 @@ async function seedOrMigrateInitialUserData(uid: string): Promise<void> {
     }
 
     await batch.commit();
-    knownSettingExists = true;
 
     try {
       localStorage.removeItem(LEGACY_STORAGE_KEYS.SETTINGS);
@@ -679,18 +778,26 @@ async function seedOrMigrateInitialUserData(uid: string): Promise<void> {
       // Ignore storage cleanup errors
     }
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, 'initial_seed_batch');
+    console.warn('Seed check notice:', error);
   }
 }
 
-function attachServicesListenerForCuenta(uid: string, cuentaId: string) {
+function attachServicesListenerForCuenta(
+  currentUid: string,
+  cuentaOwnerId: string,
+  isAdmin: boolean,
+  cuentaId: string
+) {
   if (serviceListenersByCuenta.has(cuentaId)) return;
 
   const servicesPath = `cuentas/${cuentaId}/services`;
-  const srvQuery = query(
-    collection(db, 'cuentas', cuentaId, 'services'),
-    where('ownerId', '==', uid)
-  );
+  // Admin can list all services in the subcollection; standard user queries by their own ownerId
+  const srvQuery = isAdmin
+    ? collection(db, 'cuentas', cuentaId, 'services')
+    : query(
+        collection(db, 'cuentas', cuentaId, 'services'),
+        where('ownerId', '==', cuentaOwnerId || currentUid)
+      );
 
   const unsub = onSnapshot(
     srvQuery,
@@ -734,35 +841,67 @@ function attachServicesListenerForCuenta(uid: string, cuentaId: string) {
   serviceListenersByCuenta.set(cuentaId, unsub);
 }
 
-export async function startFirebaseSync(uid: string, onUpdate: () => void): Promise<void> {
+export async function startFirebaseSync(
+  uid: string,
+  email: string | null | undefined,
+  onUpdate: () => void
+): Promise<boolean> {
   stopFirebaseSync();
   onDataChangeCallback = onUpdate;
 
+  const isAdmin = await resolveAdminRole(uid, email);
+  cachedIsAdmin = isAdmin;
+
   try {
-    await seedOrMigrateInitialUserData(uid);
+    await seedInitialAdminDataIfNeeded(uid, email, isAdmin);
   } catch (err) {
     console.error('Warning during initial seed check:', err);
   }
 
-  // 1. Listen to user settings via where('ownerId', '==', uid) query (uses allow list, safe even if empty)
-  const settingsQuery = query(collection(db, 'settings'), where('ownerId', '==', uid));
+  // 1. Listen to corporate settings via query(collection(db, 'settings'), where('companyNit', '==', '900.388.163-2'))
+  // This uses `allow list` safely even if /settings/global is being created, and prioritizes the `global` doc
+  const settingsQuery = query(
+    collection(db, 'settings'),
+    where('companyNit', '==', '900.388.163-2')
+  );
   const unsubSettings = onSnapshot(
     settingsQuery,
     (querySnap) => {
       if (!querySnap.empty) {
-        knownSettingExists = true;
-        const data = querySnap.docs[0].data();
+        const globalDoc =
+          querySnap.docs.find((d) => d.id === GLOBAL_SETTINGS_DOC_ID) || querySnap.docs[0];
+        if (globalDoc.id === GLOBAL_SETTINGS_DOC_ID) {
+          knownGlobalSettingExists = true;
+        }
+        const data = globalDoc.data();
+        // Find if any settings doc has a valid companyLogoUrl if globalDoc's is empty
+        let resolvedLogoUrl: string | undefined = data.companyLogoUrl || undefined;
+        if (!resolvedLogoUrl) {
+          for (const d of querySnap.docs) {
+            const candidate = d.data().companyLogoUrl;
+            if (typeof candidate === 'string' && candidate.length > 20) {
+              resolvedLogoUrl = candidate;
+              break;
+            }
+          }
+        }
+
+        const rawConsecutive = Number(data.nextConsecutive) || 1;
+
         cachedSettings = {
           prefix: data.prefix || DEFAULT_SETTINGS.prefix,
-          nextConsecutive: Number(data.nextConsecutive) || DEFAULT_SETTINGS.nextConsecutive,
+          nextConsecutive: Math.max(1, rawConsecutive),
           companyName: data.companyName || DEFAULT_SETTINGS.companyName,
           companyNit: data.companyNit || DEFAULT_SETTINGS.companyNit,
           companyAddress: data.companyAddress ?? DEFAULT_SETTINGS.companyAddress,
           companyPhone: data.companyPhone ?? DEFAULT_SETTINGS.companyPhone,
           companyEmail: data.companyEmail ?? DEFAULT_SETTINGS.companyEmail,
-          defaultCity: data.defaultCity || DEFAULT_SETTINGS.defaultCity,
+          defaultCity:
+            !data.defaultCity || data.defaultCity === 'Barranquilla'
+              ? DEFAULT_SETTINGS.defaultCity
+              : data.defaultCity,
           defaultConcept: data.defaultConcept || DEFAULT_SETTINGS.defaultConcept,
-          companyLogoUrl: data.companyLogoUrl || undefined,
+          companyLogoUrl: resolvedLogoUrl,
         };
         notifyDataChanged();
       }
@@ -772,18 +911,23 @@ export async function startFirebaseSync(uid: string, onUpdate: () => void): Prom
     }
   );
 
-  // 2. Listen to `/drivers` owned by uid
-  const driversQuery = query(collection(db, 'drivers'), where('ownerId', '==', uid));
+  // 2. Listen to `/drivers`: Admin sees all drivers across the company; standard user sees their own drivers
+  const driversQuery = isAdmin
+    ? collection(db, 'drivers')
+    : query(collection(db, 'drivers'), where('ownerId', '==', uid));
+
   const unsubDrivers = onSnapshot(
     driversQuery,
     (querySnap) => {
       knownDriverIds.clear();
-      const list: DriverProfile[] = [];
+      const rawList: DriverProfile[] = [];
       querySnap.forEach((docSnap) => {
+        if (deletedDriverIds.has(docSnap.id)) return;
         knownDriverIds.add(docSnap.id);
         const d = docSnap.data();
-        list.push({
+        rawList.push({
           id: docSnap.id,
+          ownerId: d.ownerId || uid,
           plate: d.plate || '',
           driverName: d.driverName || '',
           idNumber: d.idNumber || '',
@@ -800,8 +944,25 @@ export async function startFirebaseSync(uid: string, onUpdate: () => void): Prom
           lastUsedAt: d.lastUsedAt || timestampToIso(d.updatedAt),
         });
       });
-      list.sort((a, b) => (b.lastUsedAt || '').localeCompare(a.lastUsedAt || ''));
-      cachedDrivers = list;
+      rawList.sort((a, b) => (b.lastUsedAt || '').localeCompare(a.lastUsedAt || ''));
+
+      // Deduplicate by (plate + person to pay) so the same vehicle with the same payee never appears twice
+      const uniqueMap = new Map<string, DriverProfile>();
+      for (const item of rawList) {
+        const key = getVehiclePayeeKey(item);
+        if (!uniqueMap.has(key)) {
+          uniqueMap.set(key, item);
+        } else {
+          const existing = uniqueMap.get(key)!;
+          existing.frequentClients = Array.from(
+            new Set([...existing.frequentClients, ...item.frequentClients])
+          )
+            .filter(Boolean)
+            .slice(0, VALIDATION_LIMITS.FREQUENT_CLIENTS_MAX_ITEMS);
+        }
+      }
+
+      cachedDrivers = Array.from(uniqueMap.values());
       notifyDataChanged();
     },
     (error) => {
@@ -809,8 +970,11 @@ export async function startFirebaseSync(uid: string, onUpdate: () => void): Prom
     }
   );
 
-  // 3. Listen to `/cuentas` owned by uid and attach real-time listeners to each cuenta's `/services`
-  const cuentasQuery = query(collection(db, 'cuentas'), where('ownerId', '==', uid));
+  // 3. Listen to `/cuentas`: Admin sees ALL cuentas from all users; standard user sees only their own cuentas
+  const cuentasQuery = isAdmin
+    ? collection(db, 'cuentas')
+    : query(collection(db, 'cuentas'), where('ownerId', '==', uid));
+
   const unsubCuentas = onSnapshot(
     cuentasQuery,
     (querySnap) => {
@@ -819,6 +983,7 @@ export async function startFirebaseSync(uid: string, onUpdate: () => void): Prom
 
       for (const docSnap of querySnap.docs) {
         const cuentaId = docSnap.id;
+        if (deletedCuentaIds.has(cuentaId)) continue;
         currentDocsIds.add(cuentaId);
         knownCuentaIds.add(cuentaId);
         const c = docSnap.data();
@@ -829,11 +994,13 @@ export async function startFirebaseSync(uid: string, onUpdate: () => void): Prom
 
         loadedCuentas.push({
           id: cuentaId,
+          ownerId: c.ownerId || uid,
+          ownerEmail: c.ownerEmail || undefined,
           consecutive: Number(c.consecutive) || 1,
           consecutiveFormatted: c.consecutiveFormatted || 'CC-0001',
           date: c.date || '',
           paymentDueDate: c.paymentDueDate || c.date || '',
-          city: c.city || 'Barranquilla',
+          city: c.city || 'Medellín',
           companyName: c.companyName || DEFAULT_SETTINGS.companyName,
           companyNit: c.companyNit || DEFAULT_SETTINGS.companyNit,
           driverName: c.driverName || '',
@@ -859,7 +1026,7 @@ export async function startFirebaseSync(uid: string, onUpdate: () => void): Prom
           updatedAt: timestampToIso(c.updatedAt),
         });
 
-        attachServicesListenerForCuenta(uid, cuentaId);
+        attachServicesListenerForCuenta(uid, c.ownerId || uid, isAdmin, cuentaId);
       }
 
       // Clean up listeners for deleted cuentas
@@ -880,11 +1047,163 @@ export async function startFirebaseSync(uid: string, onUpdate: () => void): Prom
   );
 
   activeListeners.push(unsubSettings, unsubDrivers, unsubCuentas);
+
+  // 4. If Admin, also listen to `/admins` collection so the admin can manage authorized administrators
+  if (isAdmin) {
+    const unsubAdmins = onSnapshot(
+      collection(db, 'admins'),
+      (snap) => {
+        const list: AdminMember[] = [];
+        snap.forEach((docSnap) => {
+          const d = docSnap.data();
+          list.push({
+            uid: docSnap.id,
+            email: d.email || '',
+            role: 'admin',
+            addedBy: d.addedBy || '',
+            createdAt: timestampToIso(d.createdAt),
+            updatedAt: timestampToIso(d.updatedAt),
+          });
+        });
+        cachedAdmins = list;
+        notifyDataChanged();
+      },
+      (error) => {
+        console.warn('Error listening to admins collection:', error);
+      }
+    );
+    activeListeners.push(unsubAdmins);
+  }
+
+  return isAdmin;
+}
+
+// ============================================================================
+// Admin Management (Grant / Revoke Admin Role by UID)
+// ============================================================================
+
+export async function addAdminMember(targetUid: string, targetEmail: string): Promise<void> {
+  const currentUid = auth.currentUser?.uid;
+  if (!currentUid || !cachedIsAdmin) {
+    throw new Error('Solo el administrador puede agregar otros administradores.');
+  }
+
+  const cleanUid = sanitizeId(targetUid.trim(), '');
+  const cleanEmail = clampString(targetEmail.trim().toLowerCase(), 150, '');
+  if (!cleanUid || cleanEmail.length < 3) {
+    throw new Error('Debes ingresar un UID válido y el correo electrónico del administrador.');
+  }
+
+  beginWrite();
+  try {
+    await setDoc(doc(db, 'admins', cleanUid), {
+      uid: cleanUid,
+      email: cleanEmail,
+      role: 'admin',
+      addedBy: currentUid,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    endWrite(null);
+  } catch (error) {
+    endWrite('Error al registrar administrador en Firebase');
+    handleFirestoreError(error, OperationType.CREATE, `admins/${cleanUid}`);
+  }
+}
+
+export async function removeAdminMember(targetUid: string): Promise<void> {
+  const currentUid = auth.currentUser?.uid;
+  if (!currentUid || !cachedIsAdmin) return;
+
+  const cleanUid = sanitizeId(targetUid, '');
+  beginWrite();
+  try {
+    await deleteDoc(doc(db, 'admins', cleanUid));
+    endWrite(null);
+  } catch (error) {
+    endWrite('Error al eliminar administrador en Firebase');
+    handleFirestoreError(error, OperationType.DELETE, `admins/${cleanUid}`);
+  }
 }
 
 // ============================================================================
 // Mutations (Write to Firestore + Optimistic Memory Cache Update)
 // ============================================================================
+
+/**
+ * Increments the global consecutive counter in `/settings/global`.
+ * Standard users are permitted by Firestore rules to update `ownerId`, `nextConsecutive` (non-decreasing), and `updatedAt`.
+ */
+function incrementGlobalConsecutiveInFirestore(newNextConsecutive: number): void {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+
+  const safeNext = Math.round(
+    clampNumber(
+      newNextConsecutive,
+      VALIDATION_LIMITS.CONSECUTIVE_MIN,
+      VALIDATION_LIMITS.CONSECUTIVE_MAX,
+      1
+    )
+  );
+
+  cachedSettings = {
+    ...cachedSettings,
+    nextConsecutive: Math.max(cachedSettings.nextConsecutive, safeNext),
+  };
+  notifyDataChanged();
+
+  beginWrite();
+  (async () => {
+    try {
+      const globalSnap = await getDocs(
+        query(collection(db, 'settings'), where('companyNit', '==', '900.388.163-2'))
+      );
+      const globalDoc = globalSnap.docs.find((d) => d.id === GLOBAL_SETTINGS_DOC_ID);
+
+      if (globalDoc) {
+        knownGlobalSettingExists = true;
+        const existingData = globalDoc.data();
+        const remoteNext = Number(existingData.nextConsecutive) || 1;
+        if (remoteNext >= safeNext) {
+          cachedSettings = {
+            ...cachedSettings,
+            nextConsecutive: Math.max(cachedSettings.nextConsecutive, remoteNext),
+          };
+          notifyDataChanged();
+          endWrite(null);
+          return;
+        }
+
+        // Write full normalized document with setDoc (without merge) so any legacy/extra fields in Firestore are cleaned up while preserving createdAt
+        const fullPayload = buildSettingsFirestorePayload(uid, {
+          ...cachedSettings,
+          nextConsecutive: safeNext,
+        });
+        await setDoc(doc(db, 'settings', GLOBAL_SETTINGS_DOC_ID), {
+          ...fullPayload,
+          createdAt: existingData.createdAt || serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        const payload = buildSettingsFirestorePayload(uid, {
+          ...cachedSettings,
+          nextConsecutive: safeNext,
+        });
+        await setDoc(doc(db, 'settings', GLOBAL_SETTINGS_DOC_ID), {
+          ...payload,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        knownGlobalSettingExists = true;
+      }
+      endWrite(null);
+    } catch (error) {
+      console.warn('Notice syncing global consecutive:', error);
+      endWrite(null);
+    }
+  })();
+}
 
 export function saveSettings(settings: AppSettings): void {
   cachedSettings = { ...settings };
@@ -893,39 +1212,141 @@ export function saveSettings(settings: AppSettings): void {
   const uid = auth.currentUser?.uid;
   if (!uid) return;
 
-  const path = `settings/${uid}`;
+  // Only Administrators can modify full corporate settings on `/settings/global`
+  if (!cachedIsAdmin) {
+    incrementGlobalConsecutiveInFirestore(settings.nextConsecutive);
+    return;
+  }
+
+  const path = `settings/${GLOBAL_SETTINGS_DOC_ID}`;
   const payload = buildSettingsFirestorePayload(uid, settings);
 
   beginWrite();
   (async () => {
+    const globalRef = doc(db, 'settings', GLOBAL_SETTINGS_DOC_ID);
     try {
-      const snap = await getDocs(query(collection(db, 'settings'), where('ownerId', '==', uid)));
-      const existsInDb = !snap.empty || knownSettingExists;
-
-      if (existsInDb) {
-        const { ownerId: _ignoreOwner, ...mutableFields } = payload;
-        await updateDoc(doc(db, 'settings', uid), {
-          ...mutableFields,
+      // 1. Try updateDoc first so Firestore keeps `existing().createdAt` intact
+      try {
+        await updateDoc(globalRef, {
+          ...payload,
           updatedAt: serverTimestamp(),
         });
-      } else {
-        await setDoc(doc(db, 'settings', uid), {
+        knownGlobalSettingExists = true;
+        endWrite(null);
+        return;
+      } catch {
+        // 2. If updateDoc failed (e.g. document doesn't exist yet or has legacy schema fields), recreate cleanly
+        try {
+          await deleteDoc(globalRef);
+        } catch {}
+        await setDoc(globalRef, {
           ...payload,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
+        knownGlobalSettingExists = true;
+        endWrite(null);
+        return;
       }
-      knownSettingExists = true;
-      endWrite(null);
     } catch (error) {
-      endWrite('Error al guardar la configuración en Firebase');
-      handleFirestoreError(
-        error,
-        knownSettingExists ? OperationType.UPDATE : OperationType.CREATE,
-        path
-      );
+      // 3. Final fallback: write to Admin's own `/settings/{uid}` document which is also read by the settings query
+      try {
+        const userSettingsRef = doc(db, 'settings', uid);
+        try {
+          await updateDoc(userSettingsRef, {
+            ...payload,
+            updatedAt: serverTimestamp(),
+          });
+        } catch {
+          await setDoc(userSettingsRef, {
+            ...payload,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        }
+        endWrite(null);
+      } catch {
+        endWrite('Error al guardar la configuración en Firebase');
+        handleFirestoreError(
+          error,
+          knownGlobalSettingExists ? OperationType.UPDATE : OperationType.CREATE,
+          path
+        );
+      }
     }
   })();
+}
+
+/**
+ * Normalizes a name or ID so we can compare whether two vehicle profiles have the same "persona a pagar" (payee).
+ */
+export function normalizePayeeText(val: string | undefined): string {
+  return (val || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .trim();
+}
+
+export function getPayeeName(driver: {
+  driverName?: string;
+  paymentData?: Partial<PaymentData>;
+}): string {
+  return normalizePayeeText(driver.paymentData?.accountHolder || driver.driverName || '');
+}
+
+export function getPayeeId(driver: {
+  idNumber?: string;
+  paymentData?: Partial<PaymentData>;
+}): string {
+  return normalizePayeeText(driver.paymentData?.identification || driver.idNumber || '');
+}
+
+export function isSamePayee(
+  a: { driverName?: string; idNumber?: string; paymentData?: Partial<PaymentData> },
+  b: { driverName?: string; idNumber?: string; paymentData?: Partial<PaymentData> }
+): boolean {
+  const idA = getPayeeId(a);
+  const idB = getPayeeId(b);
+  const nameA = getPayeeName(a);
+  const nameB = getPayeeName(b);
+
+  if (idA && idB && idA === idB) return true;
+  if (nameA && nameB && nameA === nameB) return true;
+  return false;
+}
+
+export function getVehiclePayeeKey(driver: {
+  plate: string;
+  driverName?: string;
+  idNumber?: string;
+  paymentData?: Partial<PaymentData>;
+}): string {
+  const cleanPlate = (driver.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const payeeIdentity = getPayeeId(driver) || getPayeeName(driver) || 'DEFAULT';
+  return `${cleanPlate}__${payeeIdentity}`;
+}
+
+export function findMatchingVehicleByPlateAndPayee(
+  profiles: DriverProfile[],
+  candidate: {
+    id?: string;
+    plate: string;
+    driverName?: string;
+    idNumber?: string;
+    paymentData?: Partial<PaymentData>;
+  }
+): DriverProfile | undefined {
+  const cleanPlate = (candidate.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!cleanPlate) return undefined;
+
+  return profiles.find((p) => {
+    if (candidate.id && p.id === candidate.id) return false;
+    const pPlate = p.plate.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (pPlate !== cleanPlate) return false;
+    return isSamePayee(p, candidate);
+  });
 }
 
 export function saveDriverProfile(
@@ -934,12 +1355,15 @@ export function saveDriverProfile(
   const uid = auth.currentUser?.uid || 'anon';
   const profiles = [...loadDriverProfiles()];
   const normalizedPlate = driver.plate.trim().toUpperCase();
+  const cleanPlate = normalizedPlate.replace(/[^A-Z0-9]/g, '');
 
-  const existingIndex = profiles.findIndex(
-    (p) =>
-      (driver.id && p.id === driver.id) ||
-      p.plate.replace(/[^A-Z0-9]/g, '') === normalizedPlate.replace(/[^A-Z0-9]/g, '')
-  );
+  // A vehicle is unique per (Placa + Persona a pagar), unless explicitly editing by id
+  const existingIndex = profiles.findIndex((p) => {
+    if (driver.id && p.id === driver.id) return true;
+    const pPlate = p.plate.replace(/[^A-Z0-9]/g, '');
+    if (pPlate !== cleanPlate) return false;
+    return isSamePayee(p, driver);
+  });
 
   let updatedProfile: DriverProfile;
 
@@ -954,18 +1378,22 @@ export function saveDriverProfile(
       ...current,
       ...driver,
       id: sanitizeId(current.id, 'drv'),
+      ownerId: current.ownerId || uid,
       plate: normalizedPlate,
       frequentClients: mergedClients,
+      totalAccountsGenerated: (current.totalAccountsGenerated || 1) + (driver.id ? 0 : 1),
       lastUsedAt: new Date().toISOString(),
     };
     profiles[existingIndex] = updatedProfile;
   } else {
+    const deterministicKey = getVehiclePayeeKey(driver).replace(/[^A-Za-z0-9_-]/g, '-');
     const newId = sanitizeId(
-      driver.id || `${uid.slice(0, 8)}-drv-${Date.now()}`,
+      driver.id || `drv-${uid.slice(0, 6)}-${deterministicKey}`,
       'drv'
     );
     updatedProfile = {
       id: newId,
+      ownerId: uid,
       plate: normalizedPlate,
       driverName: driver.driverName || '',
       idNumber: driver.idNumber || '',
@@ -1008,6 +1436,7 @@ export function saveDriverProfile(
         } else {
           await setDoc(doc(db, 'drivers', docId), {
             ...payload,
+            ownerId: authUid,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           });
@@ -1030,6 +1459,8 @@ export function saveDriverProfile(
 
 export function deleteDriverProfile(id: string): void {
   const cleanId = sanitizeId(id, 'drv');
+  deletedDriverIds.add(id);
+  deletedDriverIds.add(cleanId);
   cachedDrivers = cachedDrivers.filter((p) => p.id !== id && p.id !== cleanId);
   notifyDataChanged();
 
@@ -1040,21 +1471,72 @@ export function deleteDriverProfile(id: string): void {
   (async () => {
     try {
       await deleteDoc(doc(db, 'drivers', cleanId));
+      if (id !== cleanId) {
+        try {
+          await deleteDoc(doc(db, 'drivers', id));
+        } catch {}
+      }
       knownDriverIds.delete(cleanId);
+      knownDriverIds.delete(id);
       endWrite(null);
     } catch (error) {
+      deletedDriverIds.delete(id);
+      deletedDriverIds.delete(cleanId);
       endWrite('Error al eliminar el conductor de Firebase');
       handleFirestoreError(error, OperationType.DELETE, path);
     }
   })();
 }
 
+/**
+ * Saves or updates a Cuenta de Cobro with an IRREPETIBLE (globally unique) consecutive.
+ * For new cuentas, the Firestore document ID is deterministically `cc-{consecutive}`.
+ * If another user has already claimed `cc-{consecutive}`, we automatically resolve the next free consecutive
+ * so two users can never create two cuentas with the same consecutive number.
+ */
 export function saveCuenta(cuenta: CuentaDeCobro): CuentaDeCobro {
   const uid = auth.currentUser?.uid || 'anon';
-  const cuentaId = sanitizeId(
-    cuenta.id.startsWith(uid.slice(0, 8)) ? cuenta.id : `${uid.slice(0, 8)}-${cuenta.id}`,
-    'cc'
+  const email = auth.currentUser?.email || '';
+
+  const cuentas = [...loadCuentas()];
+  const existingIdx = cuentas.findIndex((c) => c.id === cuenta.id);
+  const isExisting = existingIdx >= 0 && knownCuentaIds.has(cuenta.id);
+
+  // Enforce unique consecutive in memory for new accounts
+  let assignedConsecutive = Math.round(
+    clampNumber(
+      cuenta.consecutive,
+      VALIDATION_LIMITS.CONSECUTIVE_MIN,
+      VALIDATION_LIMITS.CONSECUTIVE_MAX,
+      1
+    )
   );
+
+  if (!isExisting) {
+    const usedConsecutives = new Set(cuentas.map((c) => c.consecutive));
+    while (
+      usedConsecutives.has(assignedConsecutive) ||
+      knownCuentaIds.has(`cc-${assignedConsecutive}`)
+    ) {
+      assignedConsecutive += 1;
+    }
+  }
+
+  const settings = loadSettings();
+  const formattedConsecutive = isExisting
+    ? cuenta.consecutiveFormatted
+    : formatConsecutive(settings.prefix, assignedConsecutive);
+
+  // Deterministic ID `cc-{consecutive}` for new cuentas guarantees global uniqueness in Firestore
+  const cuentaId = isExisting
+    ? sanitizeId(cuenta.id, 'cc')
+    : sanitizeId(`cc-${assignedConsecutive}`, 'cc');
+
+  const preservedOwnerId = isExisting ? cuentas[existingIdx].ownerId || uid : uid;
+  const preservedOwnerEmail = isExisting
+    ? cuentas[existingIdx].ownerEmail || email
+    : email;
+
   const sanitizedServices: ServiceItem[] = (cuenta.services || []).map((s, idx) => ({
     ...s,
     id: sanitizeId(s.id || `srv-${idx + 1}`, 'srv'),
@@ -1065,25 +1547,23 @@ export function saveCuenta(cuenta: CuentaDeCobro): CuentaDeCobro {
   const normalizedCuenta: CuentaDeCobro = {
     ...cuenta,
     id: cuentaId,
+    ownerId: preservedOwnerId,
+    ownerEmail: preservedOwnerEmail || undefined,
+    consecutive: assignedConsecutive,
+    consecutiveFormatted: formattedConsecutive,
     services: sanitizedServices,
     updatedAt: new Date().toISOString(),
   };
-
-  const cuentas = [...loadCuentas()];
-  const existingIdx = cuentas.findIndex((c) => c.id === cuenta.id || c.id === cuentaId);
-  const isExisting = existingIdx >= 0;
 
   if (isExisting) {
     cuentas[existingIdx] = normalizedCuenta;
   } else {
     cuentas.unshift(normalizedCuenta);
-    const settings = loadSettings();
-    if (normalizedCuenta.consecutive >= settings.nextConsecutive) {
-      const updatedSettings = {
-        ...settings,
-        nextConsecutive: normalizedCuenta.consecutive + 1,
+    if (assignedConsecutive >= settings.nextConsecutive) {
+      cachedSettings = {
+        ...cachedSettings,
+        nextConsecutive: assignedConsecutive + 1,
       };
-      saveSettings(updatedSettings);
     }
   }
 
@@ -1105,82 +1585,166 @@ export function saveCuenta(cuenta: CuentaDeCobro): CuentaDeCobro {
 
   if (!auth.currentUser?.uid) return normalizedCuenta;
   const authUid = auth.currentUser.uid;
-  const path = `cuentas/${cuentaId}`;
-  const existsInDb = knownCuentaIds.has(cuentaId);
 
   beginWrite();
   (async () => {
-    try {
-      const batch = writeBatch(db);
-      const cuentaRef = doc(db, 'cuentas', cuentaId);
-      const cuentaPayload = buildCuentaFirestorePayload(authUid, normalizedCuenta);
+    let finalCuentaId = cuentaId;
+    let finalConsecutive = assignedConsecutive;
+    let finalCuenta = normalizedCuenta;
 
-      if (existsInDb) {
+    try {
+      // If creating a new cuenta, verify that `cc-{consecutive}` does not already exist in Firestore
+      // (in case another user created one milliseconds ago)
+      if (!isExisting) {
+        let attempts = 0;
+        while (attempts < 15) {
+          try {
+            // Refresh global settings consecutive if needed
+            const globalSnap = await getDoc(doc(db, 'settings', GLOBAL_SETTINGS_DOC_ID));
+            if (globalSnap.exists()) {
+              const remoteNext = Number(globalSnap.data().nextConsecutive) || 1;
+              if (remoteNext > finalConsecutive && attempts > 0) {
+                finalConsecutive = remoteNext;
+              }
+            }
+          } catch {
+            // Ignore read error on global settings
+          }
+
+          finalCuentaId = sanitizeId(`cc-${finalConsecutive}`, 'cc');
+          const finalFormatted = formatConsecutive(settings.prefix, finalConsecutive);
+          finalCuenta = {
+            ...normalizedCuenta,
+            id: finalCuentaId,
+            consecutive: finalConsecutive,
+            consecutiveFormatted: finalFormatted,
+          };
+
+          try {
+            const batch = writeBatch(db);
+            const cuentaRef = doc(db, 'cuentas', finalCuentaId);
+            const cuentaPayload = buildCuentaFirestorePayload(authUid, email, finalCuenta);
+
+            batch.set(cuentaRef, {
+              ...cuentaPayload,
+              ownerId: authUid,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            });
+
+            const currentSrvIds = new Set<string>();
+            finalCuenta.services.forEach((srv, idx) => {
+              const srvId = sanitizeId(srv.id, 'srv');
+              currentSrvIds.add(srvId);
+              const srvRef = doc(db, 'cuentas', finalCuentaId, 'services', srvId);
+              const srvPayload = buildServiceItemFirestorePayload(
+                authUid,
+                finalCuentaId,
+                srv,
+                idx,
+                cuentaPayload.vehiclePlate
+              );
+              batch.set(srvRef, {
+                ...srvPayload,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+              });
+            });
+
+            await batch.commit();
+
+            // Successfully created unique `cc-{finalConsecutive}`!
+            knownCuentaIds.add(finalCuentaId);
+            knownServiceIdsByCuenta.set(finalCuentaId, currentSrvIds);
+            attachServicesListenerForCuenta(authUid, authUid, cachedIsAdmin, finalCuentaId);
+
+            // If the consecutive was bumped during collision resolution, update local cache & global counter
+            if (finalConsecutive !== assignedConsecutive) {
+              cachedCuentas = cachedCuentas.map((c) =>
+                c.id === cuentaId ? finalCuenta : c
+              );
+              notifyDataChanged();
+            }
+            incrementGlobalConsecutiveInFirestore(finalConsecutive + 1);
+            endWrite(null);
+            return;
+          } catch (createErr) {
+            // Collision on `cc-{finalConsecutive}` (already exists and owned by another user) -> try next consecutive
+            attempts += 1;
+            finalConsecutive += 1;
+            if (attempts >= 15) {
+              throw createErr;
+            }
+          }
+        }
+      } else {
+        // Updating an existing cuenta (Owner or Admin)
+        const batch = writeBatch(db);
+        const cuentaRef = doc(db, 'cuentas', finalCuentaId);
+        const cuentaPayload = buildCuentaFirestorePayload(
+          preservedOwnerId,
+          preservedOwnerEmail,
+          finalCuenta
+        );
         const { ownerId: _ignoreOwner, ...mutableFields } = cuentaPayload;
+
         batch.update(cuentaRef, {
           ...mutableFields,
           updatedAt: serverTimestamp(),
         });
-      } else {
-        batch.set(cuentaRef, {
-          ...cuentaPayload,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+
+        const prevSrvIds = knownServiceIdsByCuenta.get(finalCuentaId) || new Set<string>();
+        const currentSrvIds = new Set<string>();
+
+        finalCuenta.services.forEach((srv, idx) => {
+          const srvId = sanitizeId(srv.id, 'srv');
+          currentSrvIds.add(srvId);
+          const srvRef = doc(db, 'cuentas', finalCuentaId, 'services', srvId);
+          const srvPayload = buildServiceItemFirestorePayload(
+            preservedOwnerId,
+            finalCuentaId,
+            srv,
+            idx,
+            cuentaPayload.vehiclePlate
+          );
+
+          if (prevSrvIds.has(srvId)) {
+            const {
+              ownerId: _ignoreSrvOwner,
+              cuentaId: _ignoreCuenta,
+              ...mutableSrvFields
+            } = srvPayload;
+            batch.update(srvRef, {
+              ...mutableSrvFields,
+              updatedAt: serverTimestamp(),
+            });
+          } else {
+            batch.set(srvRef, {
+              ...srvPayload,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            });
+          }
         });
+
+        prevSrvIds.forEach((oldSrvId) => {
+          if (!currentSrvIds.has(oldSrvId)) {
+            batch.delete(doc(db, 'cuentas', finalCuentaId, 'services', oldSrvId));
+          }
+        });
+
+        await batch.commit();
+        knownCuentaIds.add(finalCuentaId);
+        knownServiceIdsByCuenta.set(finalCuentaId, currentSrvIds);
+        attachServicesListenerForCuenta(authUid, preservedOwnerId, cachedIsAdmin, finalCuentaId);
+        endWrite(null);
       }
-
-      const prevSrvIds = knownServiceIdsByCuenta.get(cuentaId) || new Set<string>();
-      const currentSrvIds = new Set<string>();
-
-      normalizedCuenta.services.forEach((srv, idx) => {
-        const srvId = sanitizeId(srv.id, 'srv');
-        currentSrvIds.add(srvId);
-        const srvRef = doc(db, 'cuentas', cuentaId, 'services', srvId);
-        const srvPayload = buildServiceItemFirestorePayload(
-          authUid,
-          cuentaId,
-          srv,
-          idx,
-          cuentaPayload.vehiclePlate
-        );
-
-        if (prevSrvIds.has(srvId)) {
-          const {
-            ownerId: _ignoreOwner,
-            cuentaId: _ignoreCuenta,
-            ...mutableSrvFields
-          } = srvPayload;
-          batch.update(srvRef, {
-            ...mutableSrvFields,
-            updatedAt: serverTimestamp(),
-          });
-        } else {
-          batch.set(srvRef, {
-            ...srvPayload,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          });
-        }
-      });
-
-      // Delete any removed service rows
-      prevSrvIds.forEach((oldSrvId) => {
-        if (!currentSrvIds.has(oldSrvId)) {
-          batch.delete(doc(db, 'cuentas', cuentaId, 'services', oldSrvId));
-        }
-      });
-
-      await batch.commit();
-      knownCuentaIds.add(cuentaId);
-      knownServiceIdsByCuenta.set(cuentaId, currentSrvIds);
-      attachServicesListenerForCuenta(authUid, cuentaId);
-      endWrite(null);
     } catch (error) {
       endWrite('Error al guardar la cuenta de cobro en Firebase');
       handleFirestoreError(
         error,
-        existsInDb ? OperationType.UPDATE : OperationType.CREATE,
-        path
+        isExisting ? OperationType.UPDATE : OperationType.CREATE,
+        `cuentas/${finalCuentaId}`
       );
     }
   })();
@@ -1191,6 +1755,21 @@ export function saveCuenta(cuenta: CuentaDeCobro): CuentaDeCobro {
 export function deleteCuenta(id: string): void {
   const target = cachedCuentas.find((c) => c.id === id);
   const cuentaId = target ? target.id : sanitizeId(id, 'cc');
+
+  // Immediately unsubscribe from the services listener so it cannot re-insert the cuenta into cachedCuentas
+  const srvUnsub = serviceListenersByCuenta.get(cuentaId);
+  if (srvUnsub) {
+    srvUnsub();
+    serviceListenersByCuenta.delete(cuentaId);
+  }
+  const srvUnsubRaw = serviceListenersByCuenta.get(id);
+  if (srvUnsubRaw) {
+    srvUnsubRaw();
+    serviceListenersByCuenta.delete(id);
+  }
+
+  deletedCuentaIds.add(id);
+  deletedCuentaIds.add(cuentaId);
   cachedCuentas = cachedCuentas.filter((c) => c.id !== id && c.id !== cuentaId);
   notifyDataChanged();
 
@@ -1200,22 +1779,45 @@ export function deleteCuenta(id: string): void {
   beginWrite();
   (async () => {
     try {
-      const batch = writeBatch(db);
-      const srvIds = knownServiceIdsByCuenta.get(cuentaId) || new Set<string>();
-      srvIds.forEach((srvId) => {
-        batch.delete(doc(db, 'cuentas', cuentaId, 'services', srvId));
-      });
-      batch.delete(doc(db, 'cuentas', cuentaId));
-      await batch.commit();
-      knownCuentaIds.delete(cuentaId);
-      knownServiceIdsByCuenta.delete(cuentaId);
-      const srvUnsub = serviceListenersByCuenta.get(cuentaId);
-      if (srvUnsub) {
-        srvUnsub();
-        serviceListenersByCuenta.delete(cuentaId);
+      // 1. Delete known services and any services currently in Firestore subcollection
+      const srvIdsToDelete = new Set<string>(knownServiceIdsByCuenta.get(cuentaId) || []);
+      if (target?.services) {
+        target.services.forEach((s) => {
+          if (s.id) srvIdsToDelete.add(s.id);
+        });
       }
+
+      try {
+        const srvSnap = await getDocs(collection(db, 'cuentas', cuentaId, 'services'));
+        srvSnap.forEach((sDoc) => srvIdsToDelete.add(sDoc.id));
+      } catch {
+        // Ignore subcollection list warning if empty or already removed
+      }
+
+      for (const srvId of srvIdsToDelete) {
+        try {
+          await deleteDoc(doc(db, 'cuentas', cuentaId, 'services', srvId));
+        } catch {
+          // Ignore individual service delete error
+        }
+      }
+
+      // 2. Delete the parent cuenta document in Firestore
+      await deleteDoc(doc(db, 'cuentas', cuentaId));
+      if (id !== cuentaId) {
+        try {
+          await deleteDoc(doc(db, 'cuentas', id));
+        } catch {}
+      }
+
+      knownCuentaIds.delete(cuentaId);
+      knownCuentaIds.delete(id);
+      knownServiceIdsByCuenta.delete(cuentaId);
+      knownServiceIdsByCuenta.delete(id);
       endWrite(null);
     } catch (error) {
+      deletedCuentaIds.delete(id);
+      deletedCuentaIds.delete(cuentaId);
       endWrite('Error al eliminar la cuenta en Firebase');
       handleFirestoreError(error, OperationType.DELETE, path);
     }
@@ -1227,7 +1829,8 @@ export function updateCuentaStatus(id: string, status: CuentaDeCobro['status']):
   const item = cuentas.find((c) => c.id === id);
   if (!item) return;
 
-  if (item.status === 'anulada') {
+  // Standard users cannot reopen an 'anulada' cuenta, but Administrators can manage all states
+  if (item.status === 'anulada' && !cachedIsAdmin) {
     return;
   }
 
@@ -1258,7 +1861,7 @@ export function updateCuentaStatus(id: string, status: CuentaDeCobro['status']):
 export function exportAllData(): string {
   const backup = {
     exportedAt: new Date().toISOString(),
-    version: '2.0-firebase',
+    version: '3.0-multi-role-firebase',
     settings: loadSettings(),
     cuentas: loadCuentas(),
     drivers: loadDriverProfiles(),
@@ -1269,7 +1872,7 @@ export function exportAllData(): string {
 export function importAllData(jsonData: string): boolean {
   try {
     const parsed = JSON.parse(jsonData);
-    if (parsed.settings) {
+    if (parsed.settings && cachedIsAdmin) {
       saveSettings({ ...DEFAULT_SETTINGS, ...parsed.settings });
     }
     if (Array.isArray(parsed.drivers)) {

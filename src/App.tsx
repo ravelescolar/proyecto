@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { LogIn, ShieldCheck, Cloud, AlertCircle } from 'lucide-react';
+import { LogIn, AlertCircle } from 'lucide-react';
 import { CuentaDeCobro, DriverProfile, AppSettings, CuentaStatus } from './types';
 import {
   loadCuentas,
@@ -17,6 +17,7 @@ import {
   startFirebaseSync,
   stopFirebaseSync,
   setSyncStatusListener,
+  isCurrentUserAdmin,
 } from './utils/storage';
 import {
   auth,
@@ -30,17 +31,19 @@ import { CuentaForm } from './components/CuentaForm';
 import { DocumentPreview } from './components/DocumentPreview';
 import { HistorialCuentas } from './components/HistorialCuentas';
 import { ConductoresPlacas } from './components/ConductoresPlacas';
+import { InformesAdmin } from './components/InformesAdmin';
 import { SettingsModal } from './components/SettingsModal';
 import { RavelLogo } from './components/RavelLogo';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  const [currentTab, setCurrentTab] = useState<'form' | 'preview' | 'history' | 'drivers'>('form');
+  const [currentTab, setCurrentTab] = useState<'form' | 'preview' | 'history' | 'drivers' | 'reports'>('form');
   const [cuentas, setCuentas] = useState<CuentaDeCobro[]>([]);
   const [drivers, setDrivers] = useState<DriverProfile[]>([]);
   const [settings, setSettings] = useState<AppSettings>(loadSettings());
@@ -54,9 +57,10 @@ export default function App() {
     setCuentas(latestCuentas);
     setDrivers([...loadDriverProfiles()]);
     setSettings({ ...loadSettings() });
+    setIsAdmin(isCurrentUserAdmin());
     setSelectedCuenta((prev) => {
       if (!prev) return null;
-      const updated = latestCuentas.find((c) => c.id === prev.id);
+      const updated = latestCuentas.find((c) => c.id === prev.id || c.consecutive === prev.consecutive);
       return updated || prev;
     });
   }, []);
@@ -81,7 +85,12 @@ export default function App() {
         setIsSyncing(true);
         setSyncError(null);
         try {
-          await startFirebaseSync(currentUser.uid, refreshData);
+          const adminRole = await startFirebaseSync(
+            currentUser.uid,
+            currentUser.email,
+            refreshData
+          );
+          setIsAdmin(adminRole);
           refreshData();
         } catch (err) {
           console.error('Error syncing with Firestore:', err);
@@ -91,6 +100,7 @@ export default function App() {
         }
       } else {
         stopFirebaseSync();
+        setIsAdmin(false);
         setCuentas([]);
         setDrivers([]);
       }
@@ -140,17 +150,19 @@ export default function App() {
 
   // Edit an existing cuenta
   const handleEdit = (cuenta: CuentaDeCobro) => {
-    if (cuenta.status === 'anulada') return;
+    if (cuenta.status === 'anulada' && !isAdmin) return;
     setSelectedCuenta(cuenta);
     setCurrentTab('form');
   };
 
-  // Duplicate an existing cuenta with next consecutive
+  // Duplicate an existing cuenta with next unique consecutive
   const handleDuplicate = (cuenta: CuentaDeCobro) => {
     const next = getNextConsecutive();
     const duplicated: CuentaDeCobro = {
       ...cuenta,
-      id: `cc-${next.number}-${Date.now()}`,
+      id: `cc-${next.number}`,
+      ownerId: user?.uid,
+      ownerEmail: user?.email || undefined,
       consecutive: next.number,
       consecutiveFormatted: next.formatted,
       date: new Date().toISOString().split('T')[0],
@@ -177,12 +189,14 @@ export default function App() {
     defaultDue.setDate(defaultDue.getDate() + 5);
 
     const newCuenta: CuentaDeCobro = {
-      id: `cc-${next.number}-${Date.now()}`,
+      id: `cc-${next.number}`,
+      ownerId: user?.uid,
+      ownerEmail: user?.email || undefined,
       consecutive: next.number,
       consecutiveFormatted: next.formatted,
       date: today,
       paymentDueDate: defaultDue.toISOString().split('T')[0],
-      city: settings.defaultCity || 'Barranquilla',
+      city: settings.defaultCity && settings.defaultCity !== 'Barranquilla' ? settings.defaultCity : 'Medellín',
       companyName: settings.companyName,
       companyNit: settings.companyNit,
       driverName: driver.driverName,
@@ -253,22 +267,14 @@ export default function App() {
   if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-white to-emerald-50/30 flex items-center justify-center p-4 font-sans">
-        <div className="w-full max-w-md bg-white rounded-2xl border border-emerald-200 shadow-xl p-8 space-y-6 text-center">
+        <div className="w-full max-w-sm bg-white rounded-2xl border border-emerald-200 shadow-xl p-8 space-y-6 text-center">
           <div className="flex justify-center">
             <RavelLogo variant="badge" size="md" showSlogan={true} />
           </div>
 
-          <div className="space-y-2">
-            <h1 className="text-xl font-black text-emerald-950 font-serif">
-              TRANSPORTES RAVEL
-            </h1>
-            <p className="text-xs font-mono font-bold text-orange-800 bg-orange-50 border border-orange-200 inline-block px-2.5 py-0.5 rounded">
-              NIT: 900.388.163-2
-            </p>
-            <p className="text-xs text-slate-600 leading-relaxed pt-1">
-              Sistema de Cuentas de Cobro conectado en tiempo real a <strong>Firebase Cloud Firestore</strong>. Inicia sesión con la misma cuenta de Google en tu PC y en tu celular para ver todos los cambios al instante.
-            </p>
-          </div>
+          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+            Plataforma oficial de <strong>Transportes Ravel</strong> para generar, consultar y descargar cuentas de cobro en PDF.
+          </p>
 
           {authError && (
             <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center gap-2 text-left">
@@ -283,19 +289,8 @@ export default function App() {
             className="w-full flex items-center justify-center gap-2.5 px-5 py-3 text-sm font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md hover:shadow-emerald-600/20 transition-all cursor-pointer active:scale-[0.99]"
           >
             <LogIn className="w-4 h-4 text-orange-300" />
-            <span>Iniciar Sesión con Google</span>
+            <span>Iniciar Sesión</span>
           </button>
-
-          <div className="pt-4 border-t border-emerald-50 flex items-center justify-center gap-4 text-[11px] text-slate-500">
-            <span className="flex items-center gap-1">
-              <Cloud className="w-3.5 h-3.5 text-emerald-600" />
-              Sincronización PC y Celular
-            </span>
-            <span className="flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              Acceso Seguro
-            </span>
-          </div>
         </div>
       </div>
     );
@@ -313,6 +308,7 @@ export default function App() {
         driversCount={drivers.length}
         settings={settings}
         userEmail={user.email}
+        isAdmin={isAdmin}
         isSyncing={isSyncing}
         onSignOut={handleSignOut}
         hasActivePreview={Boolean(selectedCuenta)}
@@ -344,6 +340,8 @@ export default function App() {
             initialCuenta={selectedCuenta}
             settings={settings}
             driverProfiles={drivers}
+            isAdmin={isAdmin}
+            userUid={user.uid}
           />
         )}
 
@@ -368,23 +366,38 @@ export default function App() {
             onDelete={handleDeleteCuenta}
             onStatusChange={handleStatusChange}
             onNew={handleStartNew}
+            isAdmin={isAdmin}
           />
         )}
 
-        {currentTab === 'drivers' && (
+        {currentTab === 'drivers' && isAdmin && (
           <ConductoresPlacas
             drivers={drivers}
             onRefresh={refreshData}
             onSelectForCuenta={handleSelectDriverForCuenta}
           />
         )}
+
+        {currentTab === 'reports' && isAdmin && (
+          <InformesAdmin
+            cuentas={cuentas}
+            onView={(c) => {
+              setSelectedCuenta(c);
+              setCurrentTab('preview');
+            }}
+            onStatusChange={handleStatusChange}
+          />
+        )}
       </main>
 
-      {/* Settings & Backup Modal */}
+      {/* Settings & Role Management Modal */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onSettingsUpdated={refreshData}
+        isAdmin={isAdmin}
+        userUid={user.uid}
+        userEmail={user.email}
       />
     </div>
   );

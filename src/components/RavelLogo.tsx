@@ -24,8 +24,13 @@ export const RavelLogo: React.FC<RavelLogoProps> = ({
 
   const { width, height } = sizeMap[size];
 
-  // If the user uploaded a custom logo image file (e.g. dataUrl), render it
-  if (customLogoUrl) {
+  // If the user uploaded a custom logo image file (e.g. valid dataUrl), render it
+  const isValidCustomLogo =
+    typeof customLogoUrl === 'string' &&
+    customLogoUrl.trim().length > 20 &&
+    (customLogoUrl.startsWith('data:image/') || customLogoUrl.startsWith('http'));
+
+  if (isValidCustomLogo) {
     return (
       <div className={`inline-flex items-center justify-center overflow-hidden rounded-xl ${className}`}>
         <img

@@ -8,12 +8,18 @@ import {
   CreditCard,
   PlusCircle,
   Check,
-  ExternalLink
+  ExternalLink,
+  MessageCircle
 } from 'lucide-react';
 import { CuentaDeCobro } from '../types';
 import { formatCurrency } from '../utils/numberToWords';
 import { formatDateColombian } from '../utils/colombianFormatters';
-import { printDocument, generatePdfFileName, downloadCuentaPDF } from '../utils/pdfExport';
+import {
+  printDocument,
+  generatePdfFileName,
+  downloadCuentaPDF,
+  shareCuentaPDFViaWhatsApp
+} from '../utils/pdfExport';
 import { RavelLogo } from './RavelLogo';
 
 interface DocumentPreviewProps {
@@ -30,8 +36,10 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   onStatusChange,
 }) => {
   const [isExporting, setIsExporting] = useState(false);
+  const [isSharingWhatsApp, setIsSharingWhatsApp] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [whatsAppStatus, setWhatsAppStatus] = useState<string | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
 
   const pdfFileName = generatePdfFileName(
@@ -60,32 +68,29 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     }
   };
 
-  const handleShareWhatsApp = () => {
-    const text = `📋 *CUENTA DE COBRO ${cuenta.consecutiveFormatted}*
-🏢 *Empresa:* TRANSPORTES RAVEL (NIT: 900.388.163-2)
-👤 *Persona a Pagar:* ${cuenta.paymentData.accountHolder || cuenta.driverName}
-🆔 *Cédula:* ${cuenta.paymentData.identification || cuenta.driverId}
-🚗 *Placa:* ${cuenta.vehiclePlate}
-📅 *Fecha Emisión:* ${cuenta.date}
-⏳ *Fecha Pactada de Pago:* ${cuenta.paymentDueDate || cuenta.date}
-💰 *Total a Pagar:* ${formatCurrency(cuenta.totalAmount)}
-📝 *Servicios:* ${cuenta.services.length} recorridos
-
-💳 *DATOS DE PAGO:*
-• Banco: ${cuenta.paymentData.bank}
-• Tipo: ${cuenta.paymentData.accountType}
-• N° de Cuenta: ${cuenta.paymentData.accountNumber}
-• Titular: ${cuenta.paymentData.accountHolder || cuenta.driverName}
-
-Generada a través del sistema oficial de Transportes Ravel.`;
-
-    const encoded = encodeURIComponent(text);
-    const phone = cuenta.driverPhone ? cuenta.driverPhone.replace(/[^0-9]/g, '') : '';
-    const whatsappUrl = phone
-      ? `https://api.whatsapp.com/send?phone=57${phone}&text=${encoded}`
-      : `https://api.whatsapp.com/send?text=${encoded}`;
-
-    window.open(whatsappUrl, '_blank');
+  const handleShareWhatsAppPDF = async () => {
+    setIsSharingWhatsApp(true);
+    setWhatsAppStatus(null);
+    try {
+      const res = await shareCuentaPDFViaWhatsApp(cuenta);
+      if (res.blobUrl) {
+        setBlobUrl(res.blobUrl);
+      }
+      if (res.mode === 'native-file') {
+        setWhatsAppStatus('¡PDF adjuntado y listo para enviar por WhatsApp!');
+        setTimeout(() => setWhatsAppStatus(null), 5000);
+      } else if (res.mode === 'fallback-whatsapp') {
+        setDownloadSuccess(true);
+        setWhatsAppStatus(
+          'Se descargó el PDF y se abrió WhatsApp. Adjunta el archivo descargado en el chat.'
+        );
+        setTimeout(() => setWhatsAppStatus(null), 6000);
+      }
+    } catch (err) {
+      console.error('Error sharing PDF via WhatsApp:', err);
+    } finally {
+      setIsSharingWhatsApp(false);
+    }
   };
 
   const handleCopySummary = () => {
@@ -130,7 +135,28 @@ Generada a través del sistema oficial de Transportes Ravel.`;
         </div>
 
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
-          {/* Primary CTA - Warm Orange Download Button (Full width on mobile top row) */}
+          {/* Primary Mobile & Desktop CTA - Exportar PDF por WhatsApp */}
+          <button
+            type="button"
+            onClick={handleShareWhatsAppPDF}
+            disabled={isSharingWhatsApp}
+            title="Genera el archivo PDF oficial y lo adjunta directamente para enviar por WhatsApp desde el celular"
+            className="col-span-2 sm:col-span-1 min-h-[44px] flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-extrabold text-white bg-[#25D366] hover:bg-[#1ebe5d] rounded-lg shadow-sm hover:shadow-emerald-500/20 transition-all active:scale-[0.98] whitespace-nowrap disabled:opacity-60 cursor-pointer"
+          >
+            {isSharingWhatsApp ? (
+              <>
+                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0" />
+                <span>Preparando PDF para WhatsApp...</span>
+              </>
+            ) : (
+              <>
+                <MessageCircle className="w-4 h-4 text-white fill-white/20 shrink-0" />
+                <span>Enviar PDF por WhatsApp</span>
+              </>
+            )}
+          </button>
+
+          {/* Secondary CTA - Warm Orange Download Button */}
           <button
             type="button"
             onClick={handleDownloadPDF}
@@ -157,16 +183,6 @@ Generada a través del sistema oficial de Transportes Ravel.`;
                 <span>Descargar PDF</span>
               </>
             )}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleShareWhatsApp}
-            title="Compartir resumen por WhatsApp"
-            className="min-h-[40px] flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
-          >
-            <Share2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>WhatsApp</span>
           </button>
 
           <button
@@ -212,13 +228,21 @@ Generada a través del sistema oficial de Transportes Ravel.`;
         </div>
       </div>
 
-      {/* Direct download notice banner for iframe / browser reliability */}
-      {downloadSuccess && (
+      {/* Direct download or WhatsApp PDF share notice banner */}
+      {(downloadSuccess || whatsAppStatus) && (
         <div className="no-print mb-4 p-3.5 bg-emerald-50 border border-emerald-300 rounded-xl text-emerald-950 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-xs">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>
-              Archivo <strong>{pdfFileName}</strong> generado correctamente.
+              {whatsAppStatus ? (
+                <>
+                  <strong>{whatsAppStatus}</strong> ({pdfFileName})
+                </>
+              ) : (
+                <>
+                  Archivo <strong>{pdfFileName}</strong> generado correctamente.
+                </>
+              )}
             </span>
           </div>
           {blobUrl && (
@@ -229,7 +253,7 @@ Generada a través del sistema oficial de Transportes Ravel.`;
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 font-bold text-emerald-800 hover:text-emerald-950 underline"
             >
-              <span>¿No inició la descarga automática? Haz clic aquí para guardar</span>
+              <span>Guardar copia del PDF ({pdfFileName})</span>
               <ExternalLink className="w-3.5 h-3.5" />
             </a>
           )}

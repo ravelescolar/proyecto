@@ -6,19 +6,23 @@ import {
   Plus,
   LogOut,
   Cloud,
-  FileText
+  FileText,
+  ShieldCheck,
+  UserCheck,
+  BarChart3
 } from 'lucide-react';
 import { AppSettings } from '../types';
 import { RavelLogo } from './RavelLogo';
 
 interface HeaderProps {
-  currentTab: 'form' | 'preview' | 'history' | 'drivers';
-  onSelectTab: (tab: 'form' | 'preview' | 'history' | 'drivers') => void;
+  currentTab: 'form' | 'preview' | 'history' | 'drivers' | 'reports';
+  onSelectTab: (tab: 'form' | 'preview' | 'history' | 'drivers' | 'reports') => void;
   onOpenSettings: () => void;
   cuentasCount: number;
   driversCount: number;
   settings: AppSettings;
   userEmail?: string | null;
+  isAdmin?: boolean;
   isSyncing?: boolean;
   onSignOut?: () => void;
   hasActivePreview?: boolean;
@@ -32,6 +36,7 @@ export const Header: React.FC<HeaderProps> = ({
   driversCount,
   settings,
   userEmail,
+  isAdmin = false,
   isSyncing,
   onSignOut,
   hasActivePreview = false,
@@ -58,14 +63,34 @@ export const Header: React.FC<HeaderProps> = ({
                   <span className="text-sm sm:text-base font-extrabold tracking-tight text-emerald-950 font-serif truncate">
                     {settings.companyName || 'TRANSPORTES RAVEL'}
                   </span>
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider shrink-0 border ${
+                      isAdmin
+                        ? 'bg-orange-50 text-orange-900 border-orange-300'
+                        : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                    }`}
+                    title={
+                      isAdmin
+                        ? 'Cuenta Administradora (Empresa de Transporte): Gestiona todas las cuentas de cobro'
+                        : 'Cuenta Usuario / Conductor: Crea y consulta tus cuentas de cobro'
+                    }
+                  >
+                    {isAdmin ? (
+                      <>
+                        <ShieldCheck className="w-3 h-3 text-orange-600 shrink-0" />
+                        <span>Administrador</span>
+                      </>
+                    ) : (
+                      <>
+                        <UserCheck className="w-3 h-3 text-emerald-600 shrink-0" />
+                        <span>Usuario</span>
+                      </>
+                    )}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium truncate">
                   <span className="font-mono font-semibold text-emerald-800">
                     NIT {settings.companyNit || '900.388.163-2'}
-                  </span>
-                  <span className="hidden sm:inline" aria-hidden="true">·</span>
-                  <span className="hidden sm:inline truncate">
-                    Transporte Terrestre y Escolar
                   </span>
                   <span aria-hidden="true">·</span>
                   <span
@@ -75,7 +100,7 @@ export const Header: React.FC<HeaderProps> = ({
                     title={userEmail ? `Sincronizado en Firebase (${userEmail})` : 'Sincronizado en Firebase'}
                   >
                     <Cloud className={`w-3 h-3 shrink-0 ${isSyncing ? 'text-orange-500 animate-pulse' : 'text-emerald-600'}`} />
-                    <span className="truncate max-w-[110px] sm:max-w-[180px]">
+                    <span className="truncate max-w-[120px] sm:max-w-[190px]">
                       {isSyncing
                         ? 'Guardando...'
                         : userEmail
@@ -127,23 +152,44 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <Clock className="w-4 h-4" />
-                <span>Historial</span>
+                <span>{isAdmin ? 'Todas las Cuentas' : 'Mis Cuentas'}</span>
                 <span className="opacity-80 font-mono tabular-nums">({cuentasCount})</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => onSelectTab('drivers')}
-                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                  currentTab === 'drivers'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'text-slate-700 hover:text-emerald-900 hover:bg-emerald-50'
-                }`}
-              >
-                <Car className="w-4 h-4" />
-                <span>Vehículos y Placas</span>
-                <span className="opacity-80 font-mono tabular-nums">({driversCount})</span>
-              </button>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => onSelectTab('drivers')}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                    currentTab === 'drivers'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-700 hover:text-emerald-900 hover:bg-emerald-50'
+                  }`}
+                >
+                  <Car className="w-4 h-4" />
+                  <span>Vehículos y Placas</span>
+                  <span className="opacity-80 font-mono tabular-nums">({driversCount})</span>
+                </button>
+              )}
+
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => onSelectTab('reports')}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                    currentTab === 'reports'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-orange-900 bg-orange-50/70 hover:bg-orange-100 border border-orange-200/80'
+                  }`}
+                >
+                  <BarChart3
+                    className={`w-4 h-4 ${
+                      currentTab === 'reports' ? 'text-orange-300' : 'text-orange-600'
+                    }`}
+                  />
+                  <span>Informes de Pago</span>
+                </button>
+              )}
             </nav>
 
             {/* Right Zone: Settings & Sign Out (Always reachable on Mobile & Desktop) */}
@@ -151,7 +197,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={onOpenSettings}
-                title="Configuración general"
+                title={isAdmin ? 'Configuración de Empresa y Roles' : 'Información de Cuenta y Perfil'}
                 className="min-h-[40px] min-w-[40px] flex items-center justify-center text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
               >
                 <Settings className="w-4 h-4" />
@@ -177,7 +223,17 @@ export const Header: React.FC<HeaderProps> = ({
         aria-label="Navegación móvil"
         className="no-print md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-emerald-100 shadow-lg"
       >
-        <div className={`grid ${hasActivePreview ? 'grid-cols-4' : 'grid-cols-3'} items-center h-16 px-1`}>
+        <div
+          className={`grid ${
+            isAdmin
+              ? hasActivePreview
+                ? 'grid-cols-5'
+                : 'grid-cols-4'
+              : hasActivePreview
+              ? 'grid-cols-3'
+              : 'grid-cols-2'
+          } items-center h-16 px-1`}
+        >
           <button
             type="button"
             onClick={() => onSelectTab('form')}
@@ -235,28 +291,53 @@ export const Header: React.FC<HeaderProps> = ({
               <Clock className="w-4 h-4" />
               <span className="text-[10px] font-mono tabular-nums font-bold">{cuentasCount}</span>
             </div>
-            <span className="text-[11px] tracking-tight mt-0.5 whitespace-nowrap">Historial</span>
+            <span className="text-[11px] tracking-tight mt-0.5 whitespace-nowrap">
+              {isAdmin ? 'Todas' : 'Mis Cuentas'}
+            </span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => onSelectTab('drivers')}
-            className={`flex flex-col items-center justify-center min-h-[48px] py-1 rounded-xl transition-colors cursor-pointer ${
-              currentTab === 'drivers'
-                ? 'text-emerald-700 font-bold'
-                : 'text-slate-500 hover:text-emerald-800 font-medium'
-            }`}
-          >
-            <div
-              className={`flex items-center justify-center px-2.5 h-6 rounded-full gap-1 transition-colors ${
-                currentTab === 'drivers' ? 'bg-emerald-100 text-emerald-800' : ''
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => onSelectTab('drivers')}
+              className={`flex flex-col items-center justify-center min-h-[48px] py-1 rounded-xl transition-colors cursor-pointer ${
+                currentTab === 'drivers'
+                  ? 'text-emerald-700 font-bold'
+                  : 'text-slate-500 hover:text-emerald-800 font-medium'
               }`}
             >
-              <Car className="w-4 h-4" />
-              <span className="text-[10px] font-mono tabular-nums font-bold">{driversCount}</span>
-            </div>
-            <span className="text-[11px] tracking-tight mt-0.5 whitespace-nowrap">Vehículos</span>
-          </button>
+              <div
+                className={`flex items-center justify-center px-2.5 h-6 rounded-full gap-1 transition-colors ${
+                  currentTab === 'drivers' ? 'bg-emerald-100 text-emerald-800' : ''
+                }`}
+              >
+                <Car className="w-4 h-4" />
+                <span className="text-[10px] font-mono tabular-nums font-bold">{driversCount}</span>
+              </div>
+              <span className="text-[11px] tracking-tight mt-0.5 whitespace-nowrap">Vehículos</span>
+            </button>
+          )}
+
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => onSelectTab('reports')}
+              className={`flex flex-col items-center justify-center min-h-[48px] py-1 rounded-xl transition-colors cursor-pointer ${
+                currentTab === 'reports'
+                  ? 'text-emerald-700 font-bold'
+                  : 'text-slate-500 hover:text-emerald-800 font-medium'
+              }`}
+            >
+              <div
+                className={`flex items-center justify-center w-8 h-6 rounded-full transition-colors ${
+                  currentTab === 'reports' ? 'bg-orange-100 text-orange-800' : ''
+                }`}
+              >
+                <BarChart3 className="w-4 h-4 text-orange-600" />
+              </div>
+              <span className="text-[11px] tracking-tight mt-0.5 whitespace-nowrap">Informes</span>
+            </button>
+          )}
         </div>
       </nav>
     </>
