@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import { CuentaDeCobro } from '../types';
 import { formatCurrency } from './numberToWords';
-import { formatDateColombian } from './colombianFormatters';
+import { formatDateColombian, formatPersonName } from './colombianFormatters';
 
 export interface PDFExportOptions {
   fileName?: string;
@@ -65,14 +65,13 @@ export function generatePdfFileName(
   // Clean identification: remove dots/spaces or retain alphanumeric
   const cleanId = (identification || '0').replace(/[^a-zA-Z0-9]/g, '');
 
-  // Clean name: replace spaces with underscores, remove accents/special chars
-  const cleanName = (personName || 'BENEFICIARIO')
+  // Clean name: replace spaces with underscores, remove accents/special chars, Title Case per word
+  const cleanName = formatPersonName(personName || 'Beneficiario')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
     .replace(/[^a-zA-Z0-9\s]/g, '')
-    .replace(/\s+/g, '_')
-    .toUpperCase();
+    .replace(/\s+/g, '_');
 
   return `${cleanDate}_${cleanId}_${cleanName}.pdf`;
 }
@@ -174,7 +173,7 @@ export function generateCuentaPdfDocument(cuenta: CuentaDeCobro): jsPDF {
 
   doc.setFontSize(10.5);
   doc.setTextColor(6, 78, 59);
-  doc.text(cuenta.driverName.toUpperCase(), margin + 3, y + 16.5);
+  doc.text(formatPersonName(cuenta.driverName), margin + 3, y + 16.5);
 
   doc.setFontSize(8.5);
   doc.setTextColor(cDark[0], cDark[1], cDark[2]);
@@ -337,7 +336,7 @@ export function generateCuentaPdfDocument(cuenta: CuentaDeCobro): jsPDF {
 
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(cDark[0], cDark[1], cDark[2]);
-  doc.text((cuenta.paymentData.accountHolder || cuenta.driverName).toUpperCase(), margin + 16, y + 17.5);
+  doc.text(formatPersonName(cuenta.paymentData.accountHolder || cuenta.driverName), margin + 16, y + 17.5);
   doc.text(cuenta.paymentData.identification || cuenta.driverId, margin + 106, y + 17.5);
 
   doc.setTextColor(194, 65, 12);
@@ -357,7 +356,7 @@ export function generateCuentaPdfDocument(cuenta: CuentaDeCobro): jsPDF {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(6, 78, 59);
-  doc.text(cuenta.driverName.toUpperCase(), margin, y);
+  doc.text(formatPersonName(cuenta.driverName), margin, y);
 
   y += 4.5;
   doc.setFont('helvetica', 'normal');
@@ -415,9 +414,10 @@ export async function downloadCuentaPDF(cuenta: CuentaDeCobro): Promise<{ succes
  * Builds the formatted WhatsApp summary message for a Cuenta de Cobro.
  */
 export function buildWhatsAppSummaryText(cuenta: CuentaDeCobro): string {
+  const formattedBeneficiary = formatPersonName(cuenta.paymentData.accountHolder || cuenta.driverName);
   return `📋 *CUENTA DE COBRO ${cuenta.consecutiveFormatted}*
 🏢 *Empresa:* ${cuenta.companyName || 'TRANSPORTES RAVEL'} (NIT: ${cuenta.companyNit || '900.388.163-2'})
-👤 *Persona a Pagar:* ${cuenta.paymentData.accountHolder || cuenta.driverName}
+👤 *Persona a Pagar:* ${formattedBeneficiary}
 🆔 *Cédula:* ${cuenta.paymentData.identification || cuenta.driverId}
 🚗 *Placa:* ${cuenta.vehiclePlate}
 📅 *Fecha Emisión:* ${cuenta.date}
@@ -429,7 +429,7 @@ export function buildWhatsAppSummaryText(cuenta: CuentaDeCobro): string {
 • Banco: ${cuenta.paymentData.bank}
 • Tipo: ${cuenta.paymentData.accountType}
 • N° de Cuenta: ${cuenta.paymentData.accountNumber}
-• Titular: ${cuenta.paymentData.accountHolder || cuenta.driverName}
+• Titular: ${formattedBeneficiary}
 
 Generada a través del sistema oficial de Transportes Ravel.`;
 }

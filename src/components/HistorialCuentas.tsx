@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { CuentaDeCobro, CuentaStatus } from '../types';
 import { formatCurrency } from '../utils/numberToWords';
+import { formatPersonName, formatStatusChangeTimestamp } from '../utils/colombianFormatters';
 import { shareCuentaPDFViaWhatsApp } from '../utils/pdfExport';
 
 interface HistorialCuentasProps {
@@ -112,6 +113,8 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
       'Servicios',
       'Total COP',
       'Estado',
+      'Fecha Cambio Estado',
+      'Admin Cambio Estado',
     ];
 
     const rows = filtered.map((c) => [
@@ -127,6 +130,8 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
       `"${c.services.length}"`,
       `"${c.totalAmount}"`,
       `"${c.status}"`,
+      `"${c.statusUpdatedAt ? formatStatusChangeTimestamp(c.statusUpdatedAt) : ''}"`,
+      `"${c.statusUpdatedByEmail || ''}"`,
     ]);
 
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
@@ -409,8 +414,8 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
                           Placa {cuenta.vehiclePlate}
                         </span>
                       </div>
-                      <div className="font-bold text-slate-900 text-xs mt-1 uppercase">
-                        {cuenta.driverName}
+                      <div className="font-bold text-slate-900 text-xs mt-1">
+                        {formatPersonName(cuenta.driverName)}
                       </div>
                       <div className="text-[11px] text-slate-500 font-mono-numbers">
                         CC {cuenta.driverId} · Emisión: {cuenta.date}
@@ -423,22 +428,54 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
                       )}
                     </div>
 
-                    <select
-                      value={cuenta.status}
-                      disabled={cuenta.status === 'anulada' && !isAdmin}
-                      onChange={(e) => onStatusChange(cuenta.id, e.target.value as CuentaStatus)}
-                      className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg border text-center transition-colors shrink-0 ${
-                        cuenta.status === 'pagada'
-                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300 cursor-pointer'
-                          : cuenta.status === 'anulada'
-                          ? 'bg-rose-50 text-rose-800 border-rose-300 cursor-not-allowed opacity-80'
-                          : 'bg-orange-50 text-orange-800 border-orange-300 cursor-pointer'
-                      }`}
-                    >
-                      <option value="emitida">Emitida</option>
-                      <option value="pagada">Pagada</option>
-                      <option value="anulada">Anulada</option>
-                    </select>
+                    <div className="flex flex-col items-end shrink-0">
+                      {isAdmin ? (
+                        <select
+                          value={cuenta.status}
+                          onChange={(e) => onStatusChange(cuenta.id, e.target.value as CuentaStatus)}
+                          className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg border text-center transition-colors cursor-pointer ${
+                            cuenta.status === 'pagada'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                              : cuenta.status === 'anulada'
+                              ? 'bg-rose-50 text-rose-800 border-rose-300'
+                              : 'bg-orange-50 text-orange-800 border-orange-300'
+                          }`}
+                        >
+                          <option value="emitida">Emitida</option>
+                          <option value="pagada">Pagada</option>
+                          <option value="anulada">Anulada</option>
+                        </select>
+                      ) : (
+                        <span
+                          title="Solo el administrador puede modificar el estado"
+                          className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg border text-center ${
+                            cuenta.status === 'pagada'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                              : cuenta.status === 'anulada'
+                              ? 'bg-rose-50 text-rose-800 border-rose-200'
+                              : 'bg-orange-50 text-orange-800 border-orange-200'
+                          }`}
+                        >
+                          {cuenta.status === 'pagada'
+                            ? 'Pagada'
+                            : cuenta.status === 'anulada'
+                            ? 'Anulada'
+                            : 'Emitida'}
+                        </span>
+                      )}
+                      {cuenta.statusUpdatedAt && (
+                        <span
+                          className="text-[10px] text-slate-400 font-mono-numbers mt-1 text-right"
+                          title={
+                            cuenta.statusUpdatedByEmail
+                              ? `Modificado por ${cuenta.statusUpdatedByEmail}`
+                              : 'Fecha de último cambio de estado'
+                          }
+                        >
+                          Cambio: {formatStatusChangeTimestamp(cuenta.statusUpdatedAt)}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-between pt-2 border-t border-slate-100">
@@ -550,7 +587,7 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
                       {/* Conductor */}
                       <td className="py-3 px-4">
                         <div className="font-bold text-slate-900 truncate max-w-[220px]">
-                          {cuenta.driverName}
+                          {formatPersonName(cuenta.driverName)}
                         </div>
                         <div className="text-[11px] text-slate-500 font-mono-numbers tabular-nums">
                           CC: {cuenta.driverId}
@@ -577,24 +614,56 @@ export const HistorialCuentas: React.FC<HistorialCuentasProps> = ({
                         {formatCurrency(cuenta.totalAmount)}
                       </td>
 
-                      {/* Status dropdown */}
+                      {/* Status dropdown (Admin only) or read-only status (User) + Timestamp */}
                       <td className="py-3 px-3 text-center">
-                        <select
-                          value={cuenta.status}
-                          disabled={cuenta.status === 'anulada' && !isAdmin}
-                          onChange={(e) => onStatusChange(cuenta.id, e.target.value as CuentaStatus)}
-                          className={`text-[11px] font-bold px-2 py-1 rounded-md border text-center transition-colors ${
-                            cuenta.status === 'pagada'
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300 cursor-pointer'
-                              : cuenta.status === 'anulada'
-                              ? 'bg-rose-50 text-rose-800 border-rose-300 cursor-not-allowed opacity-80'
-                              : 'bg-orange-50 text-orange-800 border-orange-300 cursor-pointer'
-                          }`}
-                        >
-                          <option value="emitida">Emitida</option>
-                          <option value="pagada">Pagada</option>
-                          <option value="anulada">Anulada</option>
-                        </select>
+                        <div className="flex flex-col items-center gap-1">
+                          {isAdmin ? (
+                            <select
+                              value={cuenta.status}
+                              onChange={(e) => onStatusChange(cuenta.id, e.target.value as CuentaStatus)}
+                              className={`text-[11px] font-bold px-2 py-1 rounded-md border text-center transition-colors cursor-pointer ${
+                                cuenta.status === 'pagada'
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                  : cuenta.status === 'anulada'
+                                  ? 'bg-rose-50 text-rose-800 border-rose-300'
+                                  : 'bg-orange-50 text-orange-800 border-orange-300'
+                              }`}
+                            >
+                              <option value="emitida">Emitida</option>
+                              <option value="pagada">Pagada</option>
+                              <option value="anulada">Anulada</option>
+                            </select>
+                          ) : (
+                            <span
+                              title="Solo el administrador puede modificar el estado"
+                              className={`text-[11px] font-bold px-2.5 py-1 rounded-md border text-center ${
+                                cuenta.status === 'pagada'
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                  : cuenta.status === 'anulada'
+                                  ? 'bg-rose-50 text-rose-800 border-rose-200'
+                                  : 'bg-orange-50 text-orange-800 border-orange-200'
+                              }`}
+                            >
+                              {cuenta.status === 'pagada'
+                                ? 'Pagada'
+                                : cuenta.status === 'anulada'
+                                ? 'Anulada'
+                                : 'Emitida'}
+                            </span>
+                          )}
+                          {cuenta.statusUpdatedAt && (
+                            <div
+                              className="text-[10px] text-slate-400 font-mono-numbers leading-tight whitespace-nowrap"
+                              title={
+                                cuenta.statusUpdatedByEmail
+                                  ? `Modificado por: ${cuenta.statusUpdatedByEmail}`
+                                  : 'Registro del cambio de estado'
+                              }
+                            >
+                              {formatStatusChangeTimestamp(cuenta.statusUpdatedAt)}
+                            </div>
+                          )}
+                        </div>
                       </td>
 
                       {/* Actions */}

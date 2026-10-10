@@ -2,18 +2,18 @@ import React, { useState } from 'react';
 import {
   Download,
   Printer,
-  Share2,
   ArrowLeft,
   CheckCircle2,
   CreditCard,
   PlusCircle,
   Check,
   ExternalLink,
-  MessageCircle
+  MessageCircle,
+  Save
 } from 'lucide-react';
 import { CuentaDeCobro } from '../types';
 import { formatCurrency } from '../utils/numberToWords';
-import { formatDateColombian } from '../utils/colombianFormatters';
+import { formatDateColombian, formatPersonName, formatStatusChangeTimestamp } from '../utils/colombianFormatters';
 import {
   printDocument,
   generatePdfFileName,
@@ -26,14 +26,21 @@ interface DocumentPreviewProps {
   cuenta: CuentaDeCobro;
   onEdit: () => void;
   onNew: () => void;
-  onStatusChange?: (status: CuentaDeCobro['status']) => void;
+  onSaveAndExit: () => void;
+  onStatusChange?: (
+    status: CuentaDeCobro['status'],
+    extra?: { paymentReference?: string; adminCorrectionNote?: string }
+  ) => void;
+  isAdmin?: boolean;
 }
 
 export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   cuenta,
   onEdit,
   onNew,
+  onSaveAndExit,
   onStatusChange,
+  isAdmin = false,
 }) => {
   const [isExporting, setIsExporting] = useState(false);
   const [isSharingWhatsApp, setIsSharingWhatsApp] = useState(false);
@@ -41,6 +48,10 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   const [downloadSuccess, setDownloadSuccess] = useState(false);
   const [whatsAppStatus, setWhatsAppStatus] = useState<string | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
+
+  const [paymentRefInput, setPaymentRefInput] = useState(cuenta.paymentReference || '');
+  const [correctionNoteInput, setCorrectionNoteInput] = useState(cuenta.adminCorrectionNote || '');
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
 
   const pdfFileName = generatePdfFileName(
     cuenta.paymentDueDate || cuenta.date,
@@ -114,21 +125,53 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
             <span>Volver a editar</span>
           </button>
           
-          <div className="flex items-center gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="text-slate-400">Estado:</span>
-            {cuenta.status === 'emitida' && (
-              <span className="font-semibold text-orange-800">
-                Emitida (Pendiente Pago)
-              </span>
+            {isAdmin && onStatusChange ? (
+              <select
+                value={cuenta.status}
+                onChange={(e) => onStatusChange(e.target.value as CuentaDeCobro['status'])}
+                className={`text-xs font-bold px-2.5 py-1 rounded-lg border transition-colors cursor-pointer ${
+                  cuenta.status === 'pagada'
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                    : cuenta.status === 'anulada'
+                    ? 'bg-rose-50 text-rose-800 border-rose-300'
+                    : 'bg-orange-50 text-orange-800 border-orange-300'
+                }`}
+              >
+                <option value="emitida">Emitida (Pendiente Pago)</option>
+                <option value="pagada">Pagada</option>
+                <option value="anulada">Anulada</option>
+              </select>
+            ) : (
+              <>
+                {cuenta.status === 'emitida' && (
+                  <span className="font-semibold text-orange-800">
+                    Emitida (Pendiente Pago)
+                  </span>
+                )}
+                {cuenta.status === 'pagada' && (
+                  <span className="font-semibold text-emerald-800">
+                    Pagada
+                  </span>
+                )}
+                {cuenta.status === 'anulada' && (
+                  <span className="font-semibold text-rose-800">
+                    Anulada
+                  </span>
+                )}
+              </>
             )}
-            {cuenta.status === 'pagada' && (
-              <span className="font-semibold text-emerald-800">
-                Pagada
-              </span>
-            )}
-            {cuenta.status === 'anulada' && (
-              <span className="font-semibold text-rose-800">
-                Anulada
+            {cuenta.statusUpdatedAt && (
+              <span
+                className="text-[11px] text-slate-500 font-mono-numbers"
+                title={
+                  cuenta.statusUpdatedByEmail
+                    ? `Modificado por: ${cuenta.statusUpdatedByEmail}`
+                    : 'Momento del cambio de estado'
+                }
+              >
+                · Cambio: {formatStatusChangeTimestamp(cuenta.statusUpdatedAt)}
               </span>
             )}
           </div>
@@ -187,30 +230,6 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
 
           <button
             type="button"
-            onClick={printDocument}
-            className="min-h-[40px] flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
-          >
-            <Printer className="w-4 h-4 text-emerald-700 shrink-0" />
-            <span>Imprimir</span>
-          </button>
-
-          {onStatusChange && cuenta.status !== 'anulada' && (
-            <button
-              type="button"
-              onClick={() => onStatusChange(cuenta.status === 'pagada' ? 'emitida' : 'pagada')}
-              className={`min-h-[40px] flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap cursor-pointer ${
-                cuenta.status === 'pagada'
-                  ? 'border-orange-300 bg-orange-50 text-orange-800 hover:bg-orange-100'
-                  : 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-              }`}
-            >
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>{cuenta.status === 'pagada' ? 'Marcar Pendiente' : 'Marcar Pagada'}</span>
-            </button>
-          )}
-
-          <button
-            type="button"
             onClick={handleCopySummary}
             className="min-h-[40px] flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
           >
@@ -220,13 +239,76 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
           <button
             type="button"
             onClick={onNew}
-            className="col-span-2 sm:col-span-1 min-h-[40px] flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-900 bg-emerald-100/70 hover:bg-emerald-200/80 border border-emerald-300 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+            className="min-h-[40px] flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-900 bg-emerald-100/70 hover:bg-emerald-200/80 border border-emerald-300 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
           >
             <PlusCircle className="w-4 h-4 text-orange-600 shrink-0" />
             <span>Nueva Cuenta</span>
           </button>
+
+          {/* Primary Save & Exit CTA */}
+          <button
+            type="button"
+            onClick={onSaveAndExit}
+            title="Deja guardada esta cuenta de cobro en el sistema y regresa a la página de inicio"
+            className="col-span-2 sm:col-span-1 min-h-[42px] flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-extrabold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg shadow-sm hover:shadow-emerald-700/20 transition-all active:scale-[0.98] whitespace-nowrap cursor-pointer"
+          >
+            <Save className="w-4 h-4 text-orange-300 shrink-0" />
+            <span>Guardar y Salir</span>
+          </button>
         </div>
       </div>
+
+      {/* Admin Payment Reference & Correction Note Panel */}
+      {isAdmin && (
+        <div className="no-print mb-6 bg-emerald-50/80 border border-emerald-200 rounded-xl p-4 space-y-3 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-emerald-950 uppercase tracking-wider flex items-center gap-1.5">
+              <span>Panel Administrativo de Tesorería y Correcciones</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                if (onStatusChange) {
+                  onStatusChange(cuenta.status, {
+                    paymentReference: paymentRefInput,
+                    adminCorrectionNote: correctionNoteInput,
+                  });
+                }
+              }}
+              className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg shadow-xs transition-colors cursor-pointer"
+            >
+              Guardar Referencia y Nota
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                N° de Referencia de Transferencia / Comprobante de Pago:
+              </label>
+              <input
+                type="text"
+                placeholder="Ej: TRF-982341 o Nequi N° 58190"
+                value={paymentRefInput}
+                onChange={(e) => setPaymentRefInput(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-emerald-300 bg-white font-mono-numbers focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-orange-900 mb-1">
+                Nota de Corrección para el Conductor (si hay errores):
+              </label>
+              <input
+                type="text"
+                placeholder="Ej: Por favor corregir el valor del segundo recorrido."
+                value={correctionNoteInput}
+                onChange={(e) => setCorrectionNoteInput(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-orange-300 bg-white focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Direct download or WhatsApp PDF share notice banner */}
       {(downloadSuccess || whatsAppStatus) && (
@@ -341,7 +423,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
             </div>
             <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1">
               <span className="text-base font-black text-emerald-950 tracking-tight">
-                {cuenta.driverName.toUpperCase()}
+                {formatPersonName(cuenta.driverName)}
               </span>
               <div className="flex items-center gap-4 text-xs font-medium text-slate-700">
                 <span>
@@ -464,8 +546,8 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
               </div>
               <div className="sm:col-span-2">
                 <span className="text-slate-500 block text-[10px] uppercase font-bold">Titular:</span>
-                <span className="font-semibold text-slate-900 uppercase">
-                  {cuenta.paymentData.accountHolder || cuenta.driverName}
+                <span className="font-semibold text-slate-900">
+                  {formatPersonName(cuenta.paymentData.accountHolder || cuenta.driverName)}
                 </span>
               </div>
               <div>
@@ -489,8 +571,8 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
               <p className="text-xs text-slate-600 font-medium mb-1.5">
                 Atentamente,
               </p>
-              <div className="text-sm font-black text-emerald-950 uppercase tracking-wide">
-                {cuenta.driverName}
+              <div className="text-sm font-black text-emerald-950 tracking-wide">
+                {formatPersonName(cuenta.driverName)}
               </div>
               <div className="text-xs text-slate-800 font-bold mt-0.5 font-mono-numbers">
                 C.C. {cuenta.driverId}
@@ -508,6 +590,35 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
               <span>Generado: {new Date(cuenta.createdAt).toLocaleDateString('es-CO')}</span>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Bottom Save & Exit Action Bar (Hidden in Print) */}
+      <div className="no-print mt-5 bg-white p-4 rounded-xl border border-emerald-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-xs text-emerald-950">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>
+            Cuenta de cobro <strong>{cuenta.consecutiveFormatted}</strong> generada. Presiona <strong>Guardar y Salir</strong> para conservarla y volver al inicio.
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+          <button
+            type="button"
+            onClick={onEdit}
+            className="min-h-[42px] px-4 py-2 text-xs font-semibold text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer"
+          >
+            Volver a editar
+          </button>
+
+          <button
+            type="button"
+            onClick={onSaveAndExit}
+            className="flex-1 sm:flex-initial min-h-[42px] flex items-center justify-center gap-2 px-5 py-2.5 text-xs sm:text-sm font-extrabold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg shadow-sm transition-all active:scale-[0.98] cursor-pointer"
+          >
+            <Save className="w-4 h-4 text-orange-300 shrink-0" />
+            <span>Guardar y Salir</span>
+          </button>
         </div>
       </div>
     </div>

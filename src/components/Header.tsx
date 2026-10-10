@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Home,
   Clock,
   Car,
   Settings,
@@ -15,8 +16,8 @@ import { AppSettings } from '../types';
 import { RavelLogo } from './RavelLogo';
 
 interface HeaderProps {
-  currentTab: 'form' | 'preview' | 'history' | 'drivers' | 'reports';
-  onSelectTab: (tab: 'form' | 'preview' | 'history' | 'drivers' | 'reports') => void;
+  currentTab: 'home' | 'form' | 'preview' | 'history' | 'drivers' | 'reports';
+  onSelectTab: (tab: 'home' | 'form' | 'preview' | 'history' | 'drivers' | 'reports') => void;
   onOpenSettings: () => void;
   cuentasCount: number;
   driversCount: number;
@@ -48,7 +49,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center justify-between h-14 sm:h-16 gap-2">
             {/* Brand Logo & Name */}
             <div
-              onClick={() => onSelectTab('form')}
+              onClick={() => onSelectTab('home')}
               className="flex items-center gap-2.5 sm:gap-3 cursor-pointer group min-w-0"
             >
               <RavelLogo
@@ -114,6 +115,19 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Desktop Navigation Links (Center Zone) */}
             <nav className="hidden md:flex items-center gap-1 lg:gap-2">
+              <button
+                type="button"
+                onClick={() => onSelectTab('home')}
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  currentTab === 'home'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-700 hover:text-emerald-900 hover:bg-emerald-50'
+                }`}
+              >
+                <Home className={`w-4 h-4 ${currentTab === 'home' ? 'text-orange-300' : 'text-emerald-600'}`} />
+                <span>Inicio</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => onSelectTab('form')}
@@ -227,13 +241,32 @@ export const Header: React.FC<HeaderProps> = ({
           className={`grid ${
             isAdmin
               ? hasActivePreview
-                ? 'grid-cols-5'
-                : 'grid-cols-4'
+                ? 'grid-cols-6'
+                : 'grid-cols-5'
               : hasActivePreview
-              ? 'grid-cols-3'
-              : 'grid-cols-2'
+              ? 'grid-cols-4'
+              : 'grid-cols-3'
           } items-center h-16 px-1`}
         >
+          <button
+            type="button"
+            onClick={() => onSelectTab('home')}
+            className={`flex flex-col items-center justify-center min-h-[48px] py-1 rounded-xl transition-colors cursor-pointer ${
+              currentTab === 'home'
+                ? 'text-emerald-700 font-bold'
+                : 'text-slate-500 hover:text-emerald-800 font-medium'
+            }`}
+          >
+            <div
+              className={`flex items-center justify-center w-8 h-6 rounded-full transition-colors ${
+                currentTab === 'home' ? 'bg-emerald-100 text-emerald-800' : ''
+              }`}
+            >
+              <Home className="w-4 h-4" />
+            </div>
+            <span className="text-[11px] tracking-tight mt-0.5 whitespace-nowrap">Inicio</span>
+          </button>
+
           <button
             type="button"
             onClick={() => onSelectTab('form')}

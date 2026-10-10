@@ -13,7 +13,12 @@ import {
   UserCheck
 } from 'lucide-react';
 import { DriverProfile, PaymentData } from '../types';
-import { COLOMBIAN_BANKS, ACCOUNT_TYPES, formatPlate } from '../utils/colombianFormatters';
+import {
+  COLOMBIAN_BANKS,
+  ACCOUNT_TYPES,
+  formatPlate,
+  formatPersonName
+} from '../utils/colombianFormatters';
 import {
   saveDriverProfile,
   deleteDriverProfile,
@@ -79,13 +84,13 @@ export const ConductoresPlacas: React.FC<ConductoresPlacasProps> = ({
     setIsCreating(false);
     setFormError(null);
     setPlate(profile.plate);
-    setDriverName(profile.driverName);
+    setDriverName(formatPersonName(profile.driverName));
     setIdNumber(profile.idNumber);
     setPhone(profile.phone || '');
     setBank(profile.paymentData?.bank || 'Bancolombia');
     setAccountType(profile.paymentData?.accountType || 'Ahorros');
     setAccountNumber(profile.paymentData?.accountNumber || '');
-    setAccountHolder(profile.paymentData?.accountHolder || profile.driverName);
+    setAccountHolder(formatPersonName(profile.paymentData?.accountHolder || profile.driverName));
     setIdentification(profile.paymentData?.identification || profile.idNumber);
     setFrequentClients(profile.frequentClients || []);
   };
@@ -127,13 +132,14 @@ export const ConductoresPlacas: React.FC<ConductoresPlacasProps> = ({
       return;
     }
 
-    const effectiveHolder = accountHolder.trim() || driverName.trim();
+    const formattedDriverName = formatPersonName(driverName.trim());
+    const effectiveHolder = formatPersonName(accountHolder.trim() || formattedDriverName);
     const effectiveIdentification = identification.trim() || idNumber.trim();
 
     const duplicate = findMatchingVehicleByPlateAndPayee(drivers, {
       id: editingDriver?.id,
       plate: formatPlate(plate),
-      driverName: driverName.trim(),
+      driverName: formattedDriverName,
       idNumber: idNumber.trim(),
       paymentData: {
         accountHolder: effectiveHolder,
@@ -142,7 +148,7 @@ export const ConductoresPlacas: React.FC<ConductoresPlacasProps> = ({
     });
 
     if (duplicate) {
-      const dupPayee = duplicate.paymentData?.accountHolder || duplicate.driverName;
+      const dupPayee = formatPersonName(duplicate.paymentData?.accountHolder || duplicate.driverName);
       const dupId = duplicate.paymentData?.identification || duplicate.idNumber;
       setFormError(
         `El vehículo de placa ${formatPlate(plate)} ya existe registrado para la misma persona a pagar (${dupPayee}${
@@ -155,7 +161,7 @@ export const ConductoresPlacas: React.FC<ConductoresPlacasProps> = ({
     const payload: Partial<DriverProfile> & { plate: string; driverName: string } = {
       ...(editingDriver ? { id: editingDriver.id } : {}),
       plate: formatPlate(plate),
-      driverName: driverName.trim(),
+      driverName: formattedDriverName,
       idNumber: idNumber.trim(),
       phone: phone.trim(),
       frequentClients,
@@ -274,10 +280,11 @@ export const ConductoresPlacas: React.FC<ConductoresPlacasProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="Nombre completo"
+                  placeholder="Ej: Carlos Alberto Martínez"
                   value={driverName}
-                  onChange={(e) => setDriverName(e.target.value)}
-                  className="w-full px-3 py-2 text-xs uppercase rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500"
+                  onChange={(e) => setDriverName(formatPersonName(e.target.value, true))}
+                  onBlur={() => setDriverName((prev) => formatPersonName(prev))}
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
@@ -323,10 +330,11 @@ export const ConductoresPlacas: React.FC<ConductoresPlacasProps> = ({
                     placeholder={driverName || 'Nombre del beneficiario'}
                     value={accountHolder}
                     onChange={(e) => {
-                      setAccountHolder(e.target.value);
+                      setAccountHolder(formatPersonName(e.target.value, true));
                       setFormError(null);
                     }}
-                    className="w-full px-2.5 py-1.5 text-xs uppercase rounded-md border border-slate-300 bg-white"
+                    onBlur={() => setAccountHolder((prev) => formatPersonName(prev))}
+                    className="w-full px-2.5 py-1.5 text-xs rounded-md border border-slate-300 bg-white"
                   />
                 </div>
                 <div>
@@ -497,8 +505,8 @@ export const ConductoresPlacas: React.FC<ConductoresPlacasProps> = ({
 
               {/* Driver info */}
               <div className="mt-3 space-y-1.5 text-xs">
-                <div className="font-bold text-emerald-950 uppercase">
-                  {item.driverName}
+                <div className="font-bold text-emerald-950">
+                  {formatPersonName(item.driverName)}
                 </div>
                 <div className="text-slate-500 font-mono-numbers">
                   C.C. {item.idNumber || 'Sin registrar'}
@@ -519,8 +527,8 @@ export const ConductoresPlacas: React.FC<ConductoresPlacasProps> = ({
                     {item.paymentData?.identification || item.idNumber || ''}
                   </span>
                 </div>
-                <div className="font-bold text-slate-900 uppercase truncate">
-                  {item.paymentData?.accountHolder || item.driverName}
+                <div className="font-bold text-slate-900 truncate">
+                  {formatPersonName(item.paymentData?.accountHolder || item.driverName)}
                 </div>
                 <div className="flex items-center gap-1 text-emerald-900 font-semibold pt-0.5">
                   <CreditCard className="w-3 h-3 text-orange-500" />

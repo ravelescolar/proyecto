@@ -19,7 +19,12 @@ import {
 } from 'lucide-react';
 import { CuentaDeCobro, ServiceItem, PaymentData, DriverProfile, AppSettings } from '../types';
 import { formatCurrency, numberToWords } from '../utils/numberToWords';
-import { COLOMBIAN_BANKS, ACCOUNT_TYPES, formatPlate } from '../utils/colombianFormatters';
+import {
+  COLOMBIAN_BANKS,
+  ACCOUNT_TYPES,
+  formatPlate,
+  formatPersonName
+} from '../utils/colombianFormatters';
 import { generatePdfFileName } from '../utils/pdfExport';
 import {
   loadDriverProfiles,
@@ -81,7 +86,9 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
 
   // Vehicle & Driver
   const [vehiclePlate, setVehiclePlate] = useState<string>(initialCuenta?.vehiclePlate || '');
-  const [driverName, setDriverName] = useState<string>(initialCuenta?.driverName || '');
+  const [driverName, setDriverName] = useState<string>(
+    initialCuenta?.driverName ? formatPersonName(initialCuenta.driverName) : ''
+  );
   const [driverId, setDriverId] = useState<string>(initialCuenta?.driverId || '');
   const [driverPhone, setDriverPhone] = useState<string>(initialCuenta?.driverPhone || '');
 
@@ -114,7 +121,12 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
 
   // Payment Data
   const [paymentData, setPaymentData] = useState<PaymentData>(() => {
-    if (initialCuenta) return initialCuenta.paymentData;
+    if (initialCuenta) {
+      return {
+        ...initialCuenta.paymentData,
+        accountHolder: formatPersonName(initialCuenta.paymentData.accountHolder || ''),
+      };
+    }
     return {
       bank: 'Bancolombia',
       accountNumber: '',
@@ -135,12 +147,15 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
       setPaymentDueDate(initialCuenta.paymentDueDate || initialCuenta.date);
       setCity(initialCuenta.city);
       setVehiclePlate(initialCuenta.vehiclePlate);
-      setDriverName(initialCuenta.driverName);
+      setDriverName(formatPersonName(initialCuenta.driverName));
       setDriverId(initialCuenta.driverId);
       setDriverPhone(initialCuenta.driverPhone || '');
       setServices(initialCuenta.services);
       setLegalConcept(initialCuenta.legalConcept);
-      setPaymentData(initialCuenta.paymentData);
+      setPaymentData({
+        ...initialCuenta.paymentData,
+        accountHolder: formatPersonName(initialCuenta.paymentData.accountHolder || ''),
+      });
     } else if (!isCustomConsecutive && settings.nextConsecutive) {
       setConsecutiveNum(settings.nextConsecutive);
     }
@@ -184,8 +199,9 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
   };
 
   const applyDriverProfile = (profile: DriverProfile) => {
+    const formattedDriver = formatPersonName(profile.driverName);
     setVehiclePlate(profile.plate);
-    setDriverName(profile.driverName);
+    setDriverName(formattedDriver);
     setDriverId(profile.idNumber);
     if (profile.phone) setDriverPhone(profile.phone);
 
@@ -195,7 +211,7 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
         bank: profile.paymentData.bank || 'Bancolombia',
         accountNumber: profile.paymentData.accountNumber || '',
         accountType: profile.paymentData.accountType || 'Ahorros',
-        accountHolder: profile.paymentData.accountHolder || profile.driverName,
+        accountHolder: formatPersonName(profile.paymentData.accountHolder || formattedDriver),
         identification: profile.paymentData.identification || profile.idNumber,
       });
     }
@@ -218,9 +234,10 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
 
   // Keep holder in sync with driver name if untouched
   const handleDriverNameChange = (val: string) => {
-    setDriverName(val);
+    const formatted = formatPersonName(val, true);
+    setDriverName(formatted);
     if (!paymentData.accountHolder || paymentData.accountHolder === driverName) {
-      setPaymentData((prev) => ({ ...prev, accountHolder: val }));
+      setPaymentData((prev) => ({ ...prev, accountHolder: formatted }));
     }
   };
 
@@ -368,7 +385,7 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
       city,
       companyName: settings.companyName,
       companyNit: settings.companyNit,
-      driverName: driverName.trim(),
+      driverName: formatPersonName(driverName.trim()),
       driverId: driverId.trim(),
       vehiclePlate: vehiclePlate.trim().toUpperCase(),
       driverPhone: driverPhone.trim(),
@@ -380,7 +397,12 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
       totalAmount,
       amountInWords: amountWords,
       legalConcept: legalConcept.trim(),
-      paymentData,
+      paymentData: {
+        ...paymentData,
+        accountHolder: formatPersonName(
+          (paymentData.accountHolder || driverName).trim()
+        ),
+      },
       companyLogoUrl: settings.companyLogoUrl,
       status: initialCuenta?.status || 'emitida',
       createdAt: initialCuenta?.createdAt || new Date().toISOString(),
@@ -432,12 +454,15 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
     }
     const latest = list[0];
     setVehiclePlate(latest.vehiclePlate);
-    setDriverName(latest.driverName);
+    setDriverName(formatPersonName(latest.driverName));
     setDriverId(latest.driverId);
     setDriverPhone(latest.driverPhone || '');
     setPaymentDueDate(latest.paymentDueDate || date);
     setCity(latest.city);
-    setPaymentData(latest.paymentData);
+    setPaymentData({
+      ...latest.paymentData,
+      accountHolder: formatPersonName(latest.paymentData.accountHolder || latest.driverName),
+    });
     setServices(
       latest.services.map((s) => ({
         ...s,
@@ -677,7 +702,7 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
                     </button>
                   </div>
                   {(plateSuggestions.length > 0 ? plateSuggestions : driverProfiles).map((prof) => {
-                    const payeeName = prof.paymentData?.accountHolder || prof.driverName;
+                    const payeeName = formatPersonName(prof.paymentData?.accountHolder || prof.driverName);
                     const payeeId = prof.paymentData?.identification || prof.idNumber;
                     return (
                       <button
@@ -695,7 +720,7 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
                             </span>
                           </div>
                           <div className="text-[11px] text-slate-600 truncate max-w-[200px]">
-                            Cond: {prof.driverName}
+                            Cond: {formatPersonName(prof.driverName)}
                           </div>
                         </div>
                         <div className="text-[10px] text-slate-400 font-mono-numbers text-right shrink-0">
@@ -717,10 +742,11 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
               <input
                 type="text"
                 required
-                placeholder="Ej: CARLOS ALBERTO MARTÍNEZ"
+                placeholder="Ej: Carlos Alberto Martínez"
                 value={driverName}
                 onChange={(e) => handleDriverNameChange(e.target.value)}
-                className={`w-full px-3 py-2 text-sm uppercase rounded-lg border ${
+                onBlur={() => setDriverName((prev) => formatPersonName(prev))}
+                className={`w-full px-3 py-2 text-sm rounded-lg border ${
                   errors.driverName
                     ? 'border-rose-400 bg-rose-50/30'
                     : 'border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500'
@@ -1192,9 +1218,20 @@ export const CuentaForm: React.FC<CuentaFormProps> = ({
               <input
                 type="text"
                 value={paymentData.accountHolder}
-                onChange={(e) => setPaymentData({ ...paymentData, accountHolder: e.target.value })}
+                onChange={(e) =>
+                  setPaymentData({
+                    ...paymentData,
+                    accountHolder: formatPersonName(e.target.value, true),
+                  })
+                }
+                onBlur={() =>
+                  setPaymentData((prev) => ({
+                    ...prev,
+                    accountHolder: formatPersonName(prev.accountHolder),
+                  }))
+                }
                 placeholder={driverName || 'Nombre del titular'}
-                className="w-full px-3 py-2 text-sm uppercase rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500"
               />
             </div>
 

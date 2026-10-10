@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { LogIn, AlertCircle } from 'lucide-react';
+import { LogIn, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { CuentaDeCobro, DriverProfile, AppSettings, CuentaStatus } from './types';
 import {
   loadCuentas,
@@ -27,6 +27,7 @@ import {
   User,
 } from './lib/firebase';
 import { Header } from './components/Header';
+import { InicioDashboard } from './components/InicioDashboard';
 import { CuentaForm } from './components/CuentaForm';
 import { DocumentPreview } from './components/DocumentPreview';
 import { HistorialCuentas } from './components/HistorialCuentas';
@@ -43,7 +44,7 @@ export default function App() {
   const [syncError, setSyncError] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  const [currentTab, setCurrentTab] = useState<'form' | 'preview' | 'history' | 'drivers' | 'reports'>('form');
+  const [currentTab, setCurrentTab] = useState<'home' | 'form' | 'preview' | 'history' | 'drivers' | 'reports'>('home');
   const [cuentas, setCuentas] = useState<CuentaDeCobro[]>([]);
   const [drivers, setDrivers] = useState<DriverProfile[]>([]);
   const [settings, setSettings] = useState<AppSettings>(loadSettings());
@@ -51,6 +52,7 @@ export default function App() {
   // Currently viewed or edited Cuenta
   const [selectedCuenta, setSelectedCuenta] = useState<CuentaDeCobro | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [savedBannerMessage, setSavedBannerMessage] = useState<string | null>(null);
 
   const refreshData = useCallback(() => {
     const latestCuentas = [...loadCuentas()];
@@ -137,7 +139,7 @@ export default function App() {
   const handleSignOut = async () => {
     await signOutUser();
     setSelectedCuenta(null);
-    setCurrentTab('form');
+    setCurrentTab('home');
   };
 
   // Generate / Save Cuenta
@@ -146,6 +148,22 @@ export default function App() {
     refreshData();
     setSelectedCuenta(saved);
     setCurrentTab('preview');
+  };
+
+  // Save current cuenta in preview and exit to Home
+  const handleSaveAndExit = () => {
+    if (selectedCuenta) {
+      const saved = saveCuenta(selectedCuenta);
+      refreshData();
+      setSavedBannerMessage(
+        `La Cuenta de Cobro ${saved.consecutiveFormatted} (${saved.driverName}) quedó guardada correctamente.`
+      );
+      setTimeout(() => {
+        setSavedBannerMessage(null);
+      }, 6000);
+    }
+    setSelectedCuenta(null);
+    setCurrentTab('home');
   };
 
   // Edit an existing cuenta
@@ -236,12 +254,26 @@ export default function App() {
     }
   };
 
-  // Status Change
-  const handleStatusChange = (id: string, status: CuentaStatus) => {
-    updateCuentaStatus(id, status);
+  // Status Change (Admin Only)
+  const handleStatusChange = (
+    id: string,
+    status: CuentaStatus,
+    extra?: { paymentReference?: string; paymentReceiptUrl?: string; adminCorrectionNote?: string }
+  ) => {
+    if (!isAdmin) return;
+    updateCuentaStatus(id, status, extra);
     refreshData();
+    const nowIso = new Date().toISOString();
     if (selectedCuenta && selectedCuenta.id === id) {
-      setSelectedCuenta({ ...selectedCuenta, status });
+      setSelectedCuenta({
+        ...selectedCuenta,
+        status,
+        statusUpdatedAt: nowIso,
+        statusUpdatedByEmail: user?.email || undefined,
+        ...(extra?.paymentReference !== undefined ? { paymentReference: extra.paymentReference } : {}),
+        ...(extra?.paymentReceiptUrl !== undefined ? { paymentReceiptUrl: extra.paymentReceiptUrl } : {}),
+        ...(extra?.adminCorrectionNote !== undefined ? { adminCorrectionNote: extra.adminCorrectionNote } : {}),
+      });
     }
   };
 
@@ -332,7 +364,46 @@ export default function App() {
         </div>
       )}
 
+      {savedBannerMessage && (
+        <div className="max-w-6xl w-full mx-auto mt-3 sm:mt-4 px-3 sm:px-6 lg:px-8">
+          <div className="p-3.5 bg-emerald-50 border border-emerald-300 rounded-xl text-emerald-950 text-xs sm:text-sm font-semibold flex items-center justify-between gap-2 shadow-xs">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+              <span>{savedBannerMessage}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSavedBannerMessage(null)}
+              className="text-xs font-bold text-emerald-800 hover:text-emerald-950 underline shrink-0 cursor-pointer"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
+
       <main className="flex-1 py-4 sm:py-6 px-3 sm:px-6 lg:px-8 pb-24 md:pb-8">
+        {currentTab === 'home' && (
+          <InicioDashboard
+            cuentas={cuentas}
+            drivers={drivers}
+            settings={settings}
+            userEmail={user.email}
+            userName={user.displayName}
+            isAdmin={isAdmin}
+            onNewCuenta={handleStartNew}
+            onViewCuenta={(c) => {
+              setSelectedCuenta(c);
+              setCurrentTab('preview');
+            }}
+            onEditCuenta={handleEdit}
+            onGoToHistory={() => setCurrentTab('history')}
+            onGoToDrivers={() => setCurrentTab('drivers')}
+            onGoToReports={() => setCurrentTab('reports')}
+            onStatusChange={handleStatusChange}
+          />
+        )}
+
         {currentTab === 'form' && (
           <CuentaForm
             onGenerate={handleGenerate}
@@ -350,7 +421,9 @@ export default function App() {
             cuenta={selectedCuenta}
             onEdit={() => handleEdit(selectedCuenta)}
             onNew={handleStartNew}
+            onSaveAndExit={handleSaveAndExit}
             onStatusChange={(status) => handleStatusChange(selectedCuenta.id, status)}
+            isAdmin={isAdmin}
           />
         )}
 

@@ -257,6 +257,9 @@ export function evaluateRule(ctx: RuleEvaluationContext): 'ALLOW' | 'PERMISSION_
       if (ctx.incomingData.consecutive !== ctx.existingData.consecutive && !admin) {
         return 'PERMISSION_DENIED';
       }
+      if (ctx.incomingData.status !== ctx.existingData.status && !admin) {
+        return 'PERMISSION_DENIED';
+      }
       if (ctx.existingData.status === 'anulada' && !admin) return 'PERMISSION_DENIED';
       return isValidCuentaDeCobro(ctx.incomingData) ? 'ALLOW' : 'PERMISSION_DENIED';
     }

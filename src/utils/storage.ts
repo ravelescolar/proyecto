@@ -463,9 +463,28 @@ function buildCuentaFirestorePayload(uid: string, email: string | null | undefin
     VALIDATION_LIMITS.COMPANY_EMAIL_MAX_LEN,
     ''
   );
+  const statusUpdatedAt = clampString(
+    c.statusUpdatedAt || '',
+    50,
+    ''
+  );
+  const statusUpdatedByEmail = clampString(
+    c.statusUpdatedByEmail || '',
+    VALIDATION_LIMITS.COMPANY_EMAIL_MAX_LEN,
+    ''
+  );
+  const paymentReference = clampString(c.paymentReference || '', 100, '');
+  const paymentReceiptUrl = clampString(c.paymentReceiptUrl || '', 500000, '');
+  const adminCorrectionNote = clampString(c.adminCorrectionNote || '', 1000, '');
+
   return {
     ownerId: c.ownerId || uid,
     ...(ownerEmail ? { ownerEmail } : {}),
+    ...(statusUpdatedAt ? { statusUpdatedAt } : {}),
+    ...(statusUpdatedByEmail ? { statusUpdatedByEmail } : {}),
+    ...(paymentReference ? { paymentReference } : {}),
+    ...(paymentReceiptUrl ? { paymentReceiptUrl } : {}),
+    ...(adminCorrectionNote ? { adminCorrectionNote } : {}),
     consecutive: Math.round(
       clampNumber(
         c.consecutive,
@@ -1022,6 +1041,8 @@ export async function startFirebaseSync(
           companyLogoUrl: c.companyLogoUrl || undefined,
           notes: c.notes || undefined,
           status: sanitizeStatus(c.status),
+          statusUpdatedAt: c.statusUpdatedAt ? timestampToIso(c.statusUpdatedAt) : undefined,
+          statusUpdatedByEmail: c.statusUpdatedByEmail || undefined,
           createdAt: timestampToIso(c.createdAt),
           updatedAt: timestampToIso(c.updatedAt),
         });
@@ -1552,6 +1573,13 @@ export function saveCuenta(cuenta: CuentaDeCobro): CuentaDeCobro {
     consecutive: assignedConsecutive,
     consecutiveFormatted: formattedConsecutive,
     services: sanitizedServices,
+    status: isExisting
+      ? cachedIsAdmin
+        ? sanitizeStatus(cuenta.status)
+        : cuentas[existingIdx].status
+      : 'emitida',
+    statusUpdatedAt: isExisting ? cuentas[existingIdx].statusUpdatedAt : undefined,
+    statusUpdatedByEmail: isExisting ? cuentas[existingIdx].statusUpdatedByEmail : undefined,
     updatedAt: new Date().toISOString(),
   };
 
@@ -1824,19 +1852,35 @@ export function deleteCuenta(id: string): void {
   })();
 }
 
-export function updateCuentaStatus(id: string, status: CuentaDeCobro['status']): void {
+export function updateCuentaStatus(
+  id: string,
+  status: CuentaDeCobro['status'],
+  extra?: { paymentReference?: string; paymentReceiptUrl?: string; adminCorrectionNote?: string }
+): void {
+  // Only Administrators can modify the status of Cuentas de Cobro
+  if (!cachedIsAdmin) {
+    return;
+  }
+
   const cuentas = [...loadCuentas()];
   const item = cuentas.find((c) => c.id === id);
   if (!item) return;
 
-  // Standard users cannot reopen an 'anulada' cuenta, but Administrators can manage all states
-  if (item.status === 'anulada' && !cachedIsAdmin) {
-    return;
-  }
-
   const validStatus = sanitizeStatus(status);
+  const nowIso = new Date().toISOString();
+  const adminEmail = clampString(
+    auth.currentUser?.email || PRIMARY_ADMIN_EMAIL,
+    VALIDATION_LIMITS.COMPANY_EMAIL_MAX_LEN,
+    PRIMARY_ADMIN_EMAIL
+  );
+
   item.status = validStatus;
-  item.updatedAt = new Date().toISOString();
+  item.statusUpdatedAt = nowIso;
+  item.statusUpdatedByEmail = adminEmail;
+  if (extra?.paymentReference !== undefined) item.paymentReference = clampString(extra.paymentReference, 100, '');
+  if (extra?.paymentReceiptUrl !== undefined) item.paymentReceiptUrl = clampString(extra.paymentReceiptUrl, 500000, '');
+  if (extra?.adminCorrectionNote !== undefined) item.adminCorrectionNote = clampString(extra.adminCorrectionNote, 1000, '');
+  item.updatedAt = nowIso;
   cachedCuentas = cuentas;
   notifyDataChanged();
 
@@ -1846,10 +1890,17 @@ export function updateCuentaStatus(id: string, status: CuentaDeCobro['status']):
   beginWrite();
   (async () => {
     try {
-      await updateDoc(doc(db, 'cuentas', item.id), {
+      const updatePayload: Record<string, any> = {
         status: validStatus,
+        statusUpdatedAt: nowIso,
+        statusUpdatedByEmail: adminEmail,
         updatedAt: serverTimestamp(),
-      });
+      };
+      if (extra?.paymentReference !== undefined) updatePayload.paymentReference = clampString(extra.paymentReference, 100, '');
+      if (extra?.paymentReceiptUrl !== undefined) updatePayload.paymentReceiptUrl = clampString(extra.paymentReceiptUrl, 500000, '');
+      if (extra?.adminCorrectionNote !== undefined) updatePayload.adminCorrectionNote = clampString(extra.adminCorrectionNote, 1000, '');
+
+      await updateDoc(doc(db, 'cuentas', item.id), updatePayload);
       endWrite(null);
     } catch (error) {
       endWrite('Error al actualizar el estado en Firebase');

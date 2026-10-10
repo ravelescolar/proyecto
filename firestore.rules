@@ -246,11 +246,21 @@ service cloud.firestore {
           'companyLogoUrl',
           'notes',
           'status',
+          'statusUpdatedAt',
+          'statusUpdatedByEmail',
+          'paymentReference',
+          'paymentReceiptUrl',
+          'adminCorrectionNote',
           'createdAt',
           'updatedAt'
         ])
         && isValidId(data.ownerId)
         && (!('ownerEmail' in data) || (data.ownerEmail is string && data.ownerEmail.size() <= 150))
+        && (!('statusUpdatedAt' in data) || (data.statusUpdatedAt is string && data.statusUpdatedAt.size() <= 50))
+        && (!('statusUpdatedByEmail' in data) || (data.statusUpdatedByEmail is string && data.statusUpdatedByEmail.size() <= 150))
+        && (!('paymentReference' in data) || (data.paymentReference is string && data.paymentReference.size() <= 100))
+        && (!('paymentReceiptUrl' in data) || (data.paymentReceiptUrl is string && data.paymentReceiptUrl.size() <= 500000))
+        && (!('adminCorrectionNote' in data) || (data.adminCorrectionNote is string && data.adminCorrectionNote.size() <= 1000))
         && (data.consecutive is int || data.consecutive is float) && data.consecutive >= 1 && data.consecutive <= 9999999
         && data.consecutiveFormatted is string && data.consecutiveFormatted.size() >= 1 && data.consecutiveFormatted.size() <= 30
         && data.date is string && data.date.size() >= 1 && data.date.size() <= 30
@@ -508,6 +518,7 @@ service cloud.firestore {
         && isValidId(cuentaId)
         && isValidCuentaDeCobro(incoming())
         && incoming().ownerId == request.auth.uid
+        && (incoming().status == 'emitida' || isAdmin())
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
 
@@ -521,11 +532,23 @@ service cloud.firestore {
         && incoming().updatedAt == request.time
         && (existing().status != 'anulada' || isAdmin())
         && (incoming().consecutive == existing().consecutive || isAdmin())
+        && (incoming().status == existing().status || isAdmin())
         && (
-          // Action 1: Status Transition Only (emitida <-> pagada, or -> anulada)
-          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          // Action 1: Status Transition Only (Admin Only)
+          (
+            isAdmin()
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'status',
+              'statusUpdatedAt',
+              'statusUpdatedByEmail',
+              'paymentReference',
+              'paymentReceiptUrl',
+              'adminCorrectionNote',
+              'updatedAt'
+            ])
+          )
           ||
-          // Action 2: Full Document Edit
+          // Action 2: Full Document Edit (status can only change if isAdmin())
           incoming().diff(existing()).affectedKeys().hasOnly([
             'ownerEmail',
             'consecutive',
@@ -551,6 +574,11 @@ service cloud.firestore {
             'companyLogoUrl',
             'notes',
             'status',
+            'statusUpdatedAt',
+            'statusUpdatedByEmail',
+            'paymentReference',
+            'paymentReceiptUrl',
+            'adminCorrectionNote',
             'updatedAt'
           ])
         )

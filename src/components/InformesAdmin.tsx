@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { CuentaDeCobro, CuentaStatus } from '../types';
 import { formatCurrency } from '../utils/numberToWords';
-import { formatDateColombian } from '../utils/colombianFormatters';
+import { formatDateColombian, formatPersonName, formatStatusChangeTimestamp } from '../utils/colombianFormatters';
 import { shareCuentaPDFViaWhatsApp } from '../utils/pdfExport';
 
 interface InformesAdminProps {
@@ -44,6 +44,7 @@ export const InformesAdmin: React.FC<InformesAdminProps> = ({
   const [startDueDate, setStartDueDate] = useState<string>('');
   const [endDueDate, setEndDueDate] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'active' | 'emitida' | 'pagada'>('active');
+  const [selectedCuentaIds, setSelectedCuentaIds] = useState<string[]>([]);
 
   // Exclude 'anulada' cuentas from financial payment reports
   const validCuentas = useMemo(
@@ -69,6 +70,28 @@ export const InformesAdmin: React.FC<InformesAdminProps> = ({
       return true;
     });
   }, [validCuentas, exactDueDate, startDueDate, endDueDate, statusFilter]);
+
+  const handleToggleSelectAll = () => {
+    if (selectedCuentaIds.length === filteredCuentas.length) {
+      setSelectedCuentaIds([]);
+    } else {
+      setSelectedCuentaIds(filteredCuentas.map((c) => c.id));
+    }
+  };
+
+  const handleToggleSelectOne = (id: string) => {
+    setSelectedCuentaIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleBatchMarkAsPaid = () => {
+    if (selectedCuentaIds.length === 0) return;
+    selectedCuentaIds.forEach((id) => {
+      onStatusChange(id, 'pagada');
+    });
+    setSelectedCuentaIds([]);
+  };
 
   // Group by Fecha Pactada de Pago (sorted chronologically ascending) for the Chart & Summary Table
   const dueDateBuckets = useMemo<DueDateBucket[]>(() => {
@@ -148,6 +171,8 @@ export const InformesAdmin: React.FC<InformesAdminProps> = ({
       'Servicios',
       'Valor Total COP',
       'Estado',
+      'Fecha Cambio Estado',
+      'Admin Cambio Estado',
     ];
 
     const rows = filteredCuentas.map((c) => [
@@ -162,6 +187,8 @@ export const InformesAdmin: React.FC<InformesAdminProps> = ({
       `"${c.services.length}"`,
       `"${c.totalAmount}"`,
       `"${c.status}"`,
+      `"${c.statusUpdatedAt ? formatStatusChangeTimestamp(c.statusUpdatedAt) : ''}"`,
+      `"${c.statusUpdatedByEmail || ''}"`,
     ]);
 
     const csvContent =
@@ -514,7 +541,7 @@ export const InformesAdmin: React.FC<InformesAdminProps> = ({
 
       {/* Detailed Accounts Table for Selected Due Date(s) */}
       <div className="bg-white rounded-2xl border border-emerald-100 shadow-xs overflow-hidden">
-        <div className="p-4 sm:p-5 border-b border-emerald-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-emerald-50/40">
+        <div className="p-4 sm:p-5 border-b border-emerald-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-emerald-50/40">
           <div>
             <h3 className="text-sm font-extrabold text-emerald-950">
               Relación de Cuentas de Cobro a Pagar ({filteredCuentas.length})
@@ -525,6 +552,21 @@ export const InformesAdmin: React.FC<InformesAdminProps> = ({
                 : 'Mostrando todas las cuentas según el filtro actual'}
             </p>
           </div>
+
+          {selectedCuentaIds.length > 0 && (
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-emerald-300 shadow-xs">
+              <span className="text-xs font-bold text-emerald-900">
+                {selectedCuentaIds.length} seleccionadas
+              </span>
+              <button
+                type="button"
+                onClick={handleBatchMarkAsPaid}
+                className="px-3 py-1 text-xs font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs transition-colors cursor-pointer"
+              >
+                Marcar como Pagadas (Lote)
+              </button>
+            </div>
+          )}
         </div>
 
         {filteredCuentas.length === 0 ? (
@@ -536,6 +578,14 @@ export const InformesAdmin: React.FC<InformesAdminProps> = ({
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                  <th className="py-3 px-3 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedCuentaIds.length === filteredCuentas.length && filteredCuentas.length > 0}
+                      onChange={handleToggleSelectAll}
+                      className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                    />
+                  </th>
                   <th className="py-3 px-3">Fecha Pactada Pago</th>
                   <th className="py-3 px-3">Consecutivo</th>
                   <th className="py-3 px-3">Placa</th>
@@ -547,86 +597,111 @@ export const InformesAdmin: React.FC<InformesAdminProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredCuentas.map((c) => (
-                  <tr key={c.id} className="hover:bg-emerald-50/30 transition-colors">
-                    <td className="py-3 px-3 whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-orange-50 text-orange-950 border border-orange-200 font-mono-numbers font-bold">
-                        <Calendar className="w-3 h-3 text-orange-600" />
-                        {c.paymentDueDate || c.date}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 font-mono-numbers font-bold text-emerald-950 whitespace-nowrap">
-                      {c.consecutiveFormatted}
-                    </td>
-                    <td className="py-3 px-3 font-mono-numbers font-bold text-slate-900 whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1">
-                        <Car className="w-3.5 h-3.5 text-emerald-600" />
-                        {c.vehiclePlate}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3">
-                      <div className="font-bold text-slate-900 uppercase flex items-center gap-1">
-                        <User className="w-3 h-3 text-slate-400 shrink-0" />
-                        <span>{c.paymentData.accountHolder || c.driverName}</span>
-                      </div>
-                      <div className="text-[11px] text-slate-500 font-mono-numbers">
-                        CC: {c.paymentData.identification || c.driverId}
-                      </div>
-                    </td>
-                    <td className="py-3 px-3">
-                      <div className="font-bold text-emerald-950">
-                        {c.paymentData.bank} · {c.paymentData.accountType}
-                      </div>
-                      <div className="font-mono-numbers text-slate-700 font-semibold">
-                        N° {c.paymentData.accountNumber}
-                      </div>
-                    </td>
-                    <td className="py-3 px-3 text-right font-mono-numbers tabular-nums font-black text-sm text-emerald-950 whitespace-nowrap">
-                      {formatCurrency(c.totalAmount)}
-                    </td>
-                    <td className="py-3 px-3 text-center">
-                      <select
-                        value={c.status}
-                        onChange={(e) =>
-                          onStatusChange(c.id, e.target.value as CuentaStatus)
-                        }
-                        className={`text-[11px] font-bold px-2.5 py-1 rounded-md border text-center cursor-pointer ${
-                          c.status === 'pagada'
-                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                            : 'bg-orange-50 text-orange-800 border-orange-300'
-                        }`}
-                      >
-                        <option value="emitida">Pendiente Pago</option>
-                        <option value="pagada">Pagada</option>
-                        <option value="anulada">Anulada</option>
-                      </select>
-                    </td>
-                    <td className="py-3 px-3 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => shareCuentaPDFViaWhatsApp(c)}
-                          title="Enviar PDF por WhatsApp"
-                          className="p-1.5 text-[#1ebe5d] hover:text-white hover:bg-[#25D366] rounded-md transition-colors cursor-pointer"
-                        >
-                          <MessageCircle className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onView(c)}
-                          title="Ver documento formal"
-                          className="p-1.5 text-emerald-800 hover:bg-emerald-50 rounded-md transition-colors cursor-pointer"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {filteredCuentas.map((c) => {
+                  const isChecked = selectedCuentaIds.includes(c.id);
+                  return (
+                    <tr key={c.id} className={`hover:bg-emerald-50/30 transition-colors ${isChecked ? 'bg-emerald-50/50' : ''}`}>
+                      <td className="py-3 px-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleToggleSelectOne(c.id)}
+                          className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        />
+                      </td>
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-orange-50 text-orange-950 border border-orange-200 font-mono-numbers font-bold">
+                          <Calendar className="w-3 h-3 text-orange-600" />
+                          {c.paymentDueDate || c.date}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 font-mono-numbers font-bold text-emerald-950 whitespace-nowrap">
+                        {c.consecutiveFormatted}
+                      </td>
+                      <td className="py-3 px-3 font-mono-numbers font-bold text-slate-900 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1">
+                          <Car className="w-3.5 h-3.5 text-emerald-600" />
+                          {c.vehiclePlate}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="font-bold text-slate-900 flex items-center gap-1">
+                          <User className="w-3 h-3 text-slate-400 shrink-0" />
+                          <span>{formatPersonName(c.paymentData.accountHolder || c.driverName)}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-mono-numbers">
+                          CC: {c.paymentData.identification || c.driverId}
+                        </div>
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="font-bold text-emerald-950">
+                          {c.paymentData.bank} · {c.paymentData.accountType}
+                        </div>
+                        <div className="font-mono-numbers text-slate-700 font-semibold">
+                          N° {c.paymentData.accountNumber}
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono-numbers tabular-nums font-black text-sm text-emerald-950 whitespace-nowrap">
+                        {formatCurrency(c.totalAmount)}
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <select
+                            value={c.status}
+                            onChange={(e) =>
+                              onStatusChange(c.id, e.target.value as CuentaStatus)
+                            }
+                            className={`text-[11px] font-bold px-2.5 py-1 rounded-md border text-center cursor-pointer ${
+                              c.status === 'pagada'
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                : 'bg-orange-50 text-orange-800 border-orange-300'
+                            }`}
+                          >
+                            <option value="emitida">Pendiente Pago</option>
+                            <option value="pagada">Pagada</option>
+                            <option value="anulada">Anulada</option>
+                          </select>
+                          {c.statusUpdatedAt && (
+                            <span
+                              className="text-[10px] text-slate-400 font-mono-numbers whitespace-nowrap"
+                              title={
+                                c.statusUpdatedByEmail
+                                  ? `Modificado por: ${c.statusUpdatedByEmail}`
+                                  : 'Momento del cambio de estado'
+                              }
+                            >
+                              {formatStatusChangeTimestamp(c.statusUpdatedAt)}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => shareCuentaPDFViaWhatsApp(c)}
+                            title="Enviar PDF por WhatsApp"
+                            className="p-1.5 text-[#1ebe5d] hover:text-white hover:bg-[#25D366] rounded-md transition-colors cursor-pointer"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onView(c)}
+                            title="Ver documento formal"
+                            className="p-1.5 text-emerald-800 hover:bg-emerald-50 rounded-md transition-colors cursor-pointer"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
               <tfoot>
                 <tr className="bg-emerald-50/80 border-t-2 border-emerald-200 font-bold">
-                  <td colSpan={5} className="py-3 px-4 text-right uppercase text-emerald-950">
+                  <td colSpan={6} className="py-3 px-4 text-right uppercase text-emerald-950">
                     TOTAL FILTRADO ({filteredCuentas.length} CUENTAS):
                   </td>
                   <td className="py-3 px-3 text-right font-mono-numbers tabular-nums font-black text-sm text-emerald-950">

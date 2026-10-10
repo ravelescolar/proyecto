@@ -41,6 +41,23 @@ export function isValidPlate(plate: string): boolean {
   return clean.length >= 5 && clean.length <= 6;
 }
 
+/**
+ * Formats a person's name (Conductor or Beneficiario / Titular) into Title Case:
+ * Initial capital letter and remaining letters lowercase for each word (e.g., "Carlos Alberto Martínez").
+ * If preserveTrailingSpace is true, allows live typing between words without stripping trailing space.
+ */
+export function formatPersonName(val: string, preserveTrailingSpace = false): string {
+  if (!val) return '';
+  const hasTrailingSpace = preserveTrailingSpace && /\s$/.test(val);
+  const words = val
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
+  const formatted = words.join(' ');
+  return hasTrailingSpace && formatted.length > 0 ? `${formatted} ` : formatted;
+}
+
 export function formatDateColombian(dateStr: string): string {
   if (!dateStr) return '';
   try {
@@ -54,5 +71,27 @@ export function formatDateColombian(dateStr: string): string {
     }).format(date);
   } catch {
     return dateStr;
+  }
+}
+
+/**
+ * Formats an ISO timestamp of when a Cuenta de Cobro changed status into a readable Colombian date and time
+ * e.g. "10/10/2026, 09:26 a. m."
+ */
+export function formatStatusChangeTimestamp(isoDateStr: string | undefined | null): string {
+  if (!isoDateStr) return '';
+  try {
+    const d = new Date(isoDateStr);
+    if (isNaN(d.getTime())) return isoDateStr;
+    return d.toLocaleString('es-CO', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    return isoDateStr;
   }
 }

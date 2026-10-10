@@ -53,6 +53,11 @@ export interface CuentaDeCobro {
   companyLogoUrl?: string;
   notes?: string;
   status: CuentaStatus;
+  statusUpdatedAt?: string;
+  statusUpdatedByEmail?: string;
+  paymentReference?: string;
+  paymentReceiptUrl?: string;
+  adminCorrectionNote?: string;
   createdAt: string;
   updatedAt: string;
 }
